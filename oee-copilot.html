@@ -1,0 +1,1166 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YASH Shopfloor OEE Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#111c28; --ink-2:#3a4a5a; --mute:#7c8a99;
+    --panel:#ffffff; --bg:#eef1f5; --line:#dfe4ea; --line-2:#eaeef3;
+    --y-red:#e0301e; --y-blue:#1466b8; --y-blue-d:#0f4e8f; --y-gold:#9c8a37;
+    --good:#149a63; --warn:#e08a1e; --crit:#e0301e;
+    --slate:#14202e; --slate-2:#1d2c3d;
+    --shadow:0 1px 2px rgba(17,28,40,.06),0 8px 24px rgba(17,28,40,.06);
+    --r:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:
+      radial-gradient(1200px 600px at 80% -10%, #f6f8fb 0, transparent 60%),
+      var(--bg);
+    color:var(--ink); font-family:Inter,system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased; font-size:14px; line-height:1.5;
+  }
+  .mono{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+  .cond{font-family:'Barlow Semi Condensed',sans-serif}
+  h1,h2,h3{margin:0}
+  button{font-family:inherit;cursor:pointer}
+  ::selection{background:#cfe2f7}
+
+  /* ---------- Header ---------- */
+  header{
+    position:sticky;top:0;z-index:30;
+    background:linear-gradient(180deg,var(--slate),var(--slate-2));
+    color:#eaf0f6;border-bottom:1px solid #0b1520;
+  }
+  .head-in{max-width:1400px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:18px}
+  .logo-pill{background:#fff;border-radius:9px;padding:7px 12px;display:flex;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+  .logo-pill img{height:30px;display:block}
+  .head-title{display:flex;flex-direction:column;line-height:1.15}
+  .head-title .k{font:600 12px/1 Inter;letter-spacing:.14em;text-transform:uppercase;color:#7fa7d4}
+  .head-title .t{font:700 20px/1.1 'Barlow Semi Condensed';letter-spacing:.01em}
+  .head-right{margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  
+  .dashboard-btn{
+  background:#1466b8;
+  color:#fff;
+  border:1px solid #2a7bc9;
+  border-radius:10px;
+  padding:9px 14px;
+  font:600 13px Inter;
+  cursor:pointer;
+  text-decoration:none;
+  transition:background .2s ease,transform .2s ease;
+ }
+
+  .dashboard-btn:hover{
+  background:#0f4e8f;
+  transform:translateY(-1px);
+ }
+
+
+  .shift{display:flex;align-items:center;gap:8px;background:#0d1926;border:1px solid #24384c;border-radius:999px;padding:6px 12px;font:500 12.5px 'IBM Plex Mono',monospace;color:#cfe0f0}
+  .live-dot{width:8px;height:8px;border-radius:50%;background:#39d98a;box-shadow:0 0 0 0 rgba(57,217,138,.6);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(57,217,138,.5)}70%{box-shadow:0 0 0 7px rgba(57,217,138,0)}100%{box-shadow:0 0 0 0 rgba(57,217,138,0)}}
+  .selwrap{position:relative}
+  select#line{
+    appearance:none;background:#0d1926;color:#eaf0f6;border:1px solid #2a3f55;
+    border-radius:10px;padding:9px 34px 9px 12px;font:600 13px Inter;letter-spacing:.01em;min-width:210px;
+  }
+  .selwrap::after{content:"▾";position:absolute;right:12px;top:50%;transform:translateY(-50%);color:#7fa7d4;pointer-events:none;font-size:12px}
+
+  /* ---------- Layout ---------- */
+  .wrap{max-width:1400px;margin:0 auto;padding:20px;display:grid;grid-template-columns:minmax(0,1fr) 390px;gap:18px;align-items:start}
+  @media(max-width:1080px){.wrap{grid-template-columns:1fr}}
+  .col-main{display:flex;flex-direction:column;gap:18px;min-width:0}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+  .card-h{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line-2)}
+  .card-h .eyebrow{font:600 11px Inter;letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
+  .card-h h2{font:700 16px 'Barlow Semi Condensed';letter-spacing:.02em;color:var(--ink)}
+  .card-h .sub{margin-left:auto;font:500 12px 'IBM Plex Mono',monospace;color:var(--mute)}
+  .card-b{padding:18px}
+
+  /* ---------- Hero OEE ---------- */
+  .hero{display:grid;grid-template-columns:auto 1fr;gap:26px;align-items:center;padding:22px}
+  @media(max-width:560px){.hero{grid-template-columns:1fr;justify-items:center;text-align:center}}
+  .gauge{position:relative;width:230px;height:230px}
+  .gauge .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .gauge .val{font:700 62px/0.9 'Barlow Semi Condensed';letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+  .gauge .pct{font:600 20px 'Barlow Semi Condensed';margin-top:2px}
+  .gauge .lab{font:600 11px Inter;letter-spacing:.22em;text-transform:uppercase;color:var(--mute);margin-top:8px}
+  .hero-meta{min-width:0}
+  .verdict{display:inline-flex;align-items:center;gap:9px;padding:7px 14px;border-radius:999px;font:600 13px Inter;letter-spacing:.01em}
+  .hero-eq{margin:16px 0 4px;font:500 13px 'IBM Plex Mono',monospace;color:var(--ink-2)}
+  .hero-eq b{color:var(--ink)}
+  .hero-note{color:var(--ink-2);max-width:52ch}
+  .hero-note b{color:var(--ink)}
+  .trend{display:flex;align-items:flex-end;gap:16px;margin-top:16px;flex-wrap:wrap}
+  .spark{display:flex;align-items:flex-end;gap:4px;height:46px}
+  .spark span{width:12px;border-radius:3px 3px 0 0;background:var(--y-blue);opacity:.85}
+  .trend .tl{font:500 11px Inter;letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+
+  /* ---------- Component cards ---------- */
+  .apq{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media(max-width:720px){.apq{grid-template-columns:1fr}}
+  .comp{padding:16px}
+  .comp .top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+  .comp .name{font:600 12px Inter;letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+  .comp .big{font:700 34px 'Barlow Semi Condensed';font-variant-numeric:tabular-nums}
+  .comp .big small{font-size:18px;font-weight:600}
+  .bar{position:relative;height:9px;border-radius:6px;background:var(--line);margin:12px 0 8px;overflow:visible}
+  .bar>i{position:absolute;left:0;top:0;bottom:0;border-radius:6px;display:block}
+  .bar .tick{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);opacity:.55;border-radius:2px}
+  .bar .tick::after{content:attr(data-t);position:absolute;top:-16px;left:50%;transform:translateX(-50%);font:500 9px 'IBM Plex Mono',monospace;color:var(--mute);white-space:nowrap}
+  .comp .facts{display:flex;flex-direction:column;gap:3px;margin-top:8px}
+  .comp .facts div{display:flex;justify-content:space-between;font:500 12px 'IBM Plex Mono',monospace;color:var(--ink-2)}
+  .comp .facts b{color:var(--ink);font-weight:600}
+
+  /* ---------- Waterfall ---------- */
+  .wf-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;font:500 12px Inter;color:var(--ink-2)}
+  .wf-legend span{display:inline-flex;align-items:center;gap:7px}
+  .dot{width:11px;height:11px;border-radius:3px;display:inline-block}
+
+  /* ---------- Two-up ---------- */
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:900px){.two{grid-template-columns:1fr}}
+  .pareto{display:flex;flex-direction:column;gap:11px}
+  .prow .lb{display:flex;justify-content:space-between;font:500 12.5px Inter;margin-bottom:5px}
+  .prow .lb .r{font-family:'IBM Plex Mono',monospace;color:var(--ink-2)}
+  .ptrack{height:20px;border-radius:5px;background:var(--line-2);overflow:hidden}
+  .ptrack>i{display:block;height:100%;border-radius:5px}
+  .tag{font:600 10px Inter;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:5px;margin-left:8px}
+  .tag.a{background:#fdeae7;color:#b32516}
+  .tag.p{background:#eaf1fb;color:#0f4e8f}
+  .tag.q{background:#fbf4e2;color:#8a771f}
+
+  table.log{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.log th{text-align:left;font:600 10.5px Inter;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);padding:0 10px 8px;border-bottom:1px solid var(--line)}
+  table.log td{padding:9px 10px;border-bottom:1px solid var(--line-2);font-family:'IBM Plex Mono',monospace;color:var(--ink-2)}
+  table.log td.r{color:var(--ink);font-weight:500;font-family:Inter}
+  table.log tr:last-child td{border-bottom:none}
+  .chip{font:600 10px Inter;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:5px}
+
+  /* ---------- Copilot ---------- */
+  .copilot{position:sticky;top:80px;display:flex;flex-direction:column;max-height:calc(100vh - 100px);overflow:hidden}
+  @media(max-width:1080px){.copilot{position:static;max-height:none}}
+  .cop-h{display:flex;align-items:center;gap:11px;padding:15px 18px;background:linear-gradient(180deg,#12294a,#0f4e8f);color:#eaf2fb;border-radius:var(--r) var(--r) 0 0}
+  .cop-h .ico{width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.14);display:grid;place-items:center;border:1px solid rgba(255,255,255,.2)}
+  .cop-h .t{font:700 15px 'Barlow Semi Condensed';letter-spacing:.02em}
+  .cop-h .s{font:500 11px 'IBM Plex Mono',monospace;color:#a9c6e8}
+  .cop-h .badge{margin-left:auto;font:600 10px Inter;letter-spacing:.08em;text-transform:uppercase;background:rgba(255,255,255,.16);padding:4px 9px;border-radius:999px}
+  .stream{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;background:linear-gradient(180deg,#f7f9fc,#fff);min-height:280px}
+  .msg{max-width:88%;padding:11px 13px;border-radius:13px;font-size:13.5px;line-height:1.55;white-space:pre-wrap;word-wrap:break-word}
+  .msg.u{align-self:flex-end;background:var(--y-blue);color:#fff;border-bottom-right-radius:4px}
+  .msg.a{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px;box-shadow:var(--shadow)}
+  .msg.a b{color:var(--y-blue-d)}
+  .msg.err{align-self:flex-start;background:#fdeae7;border:1px solid #f4c3bb;color:#9a2314}
+  .typing{align-self:flex-start;display:flex;gap:4px;padding:12px 14px;background:#fff;border:1px solid var(--line);border-radius:13px}
+  .typing i{width:7px;height:7px;border-radius:50%;background:#a9b6c4;animation:bob 1.2s infinite}
+  .typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+  @keyframes bob{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-5px);opacity:1}}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;padding:0 16px 12px}
+  .chip-btn{font:500 12px Inter;background:#eef4fb;color:var(--y-blue-d);border:1px solid #d3e3f5;border-radius:999px;padding:7px 12px;transition:.15s}
+  .chip-btn:hover{background:#e0edfa;border-color:#b9d4f0}
+  .composer{display:flex;gap:9px;padding:12px 14px;border-top:1px solid var(--line);background:#fff;border-radius:0 0 var(--r) var(--r)}
+  .composer input{flex:1;border:1px solid var(--line);border-radius:11px;padding:11px 13px;font:400 13.5px Inter;color:var(--ink);outline:none}
+  .composer input:focus{border-color:var(--y-blue);box-shadow:0 0 0 3px rgba(20,102,184,.14)}
+  .send{background:var(--y-blue);color:#fff;border:none;border-radius:11px;width:44px;display:grid;place-items:center;transition:.15s}
+  .send:hover{background:var(--y-blue-d)}
+  .send:disabled{opacity:.5;cursor:not-allowed}
+
+  footer{max-width:1400px;margin:0 auto;padding:8px 20px 28px;color:var(--mute);font-size:11.5px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .foot-dot{width:4px;height:4px;border-radius:50%;background:var(--mute)}
+  a.link{color:var(--y-blue-d);text-decoration:none;border-bottom:1px solid #cfe0f2}
+
+  /* ---------- Root-cause drilldown ---------- */
+  .dd{display:flex;flex-direction:column;gap:12px}
+  .dd-row{display:grid;grid-template-columns:120px 1fr;gap:14px;align-items:center;padding:12px 14px;border:1px solid var(--line-2);border-radius:10px;background:#fbfcfe}
+  @media(max-width:560px){.dd-row{grid-template-columns:1fr}}
+  .dd-row .h{display:flex;flex-direction:column;gap:3px}
+  .dd-row .h .n{font:700 15px 'Barlow Semi Condensed';letter-spacing:.02em}
+  .dd-row .h .v{font:600 22px 'Barlow Semi Condensed';font-variant-numeric:tabular-nums}
+  .dd-row .h .s{font:600 9.5px Inter;letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;border-radius:5px;width:fit-content}
+  .dd-row .why{font-size:12.5px;color:var(--ink-2);line-height:1.5}
+  .dd-row .why b{color:var(--ink)}
+  .dd-row .why .pts{font:600 11px 'IBM Plex Mono',monospace;color:var(--crit)}
+
+  /* ---------- Simulator ---------- */
+  .sim{border:1px solid #cfe0f2 !important;box-shadow:0 1px 2px rgba(17,28,40,.06),0 10px 30px rgba(20,102,184,.10)}
+  .sim .card-h{background:linear-gradient(180deg,#eef5fc,#fff)}
+  .sim-grid{display:grid;grid-template-columns:1fr 340px;gap:22px}
+  @media(max-width:900px){.sim-grid{grid-template-columns:1fr}}
+  .sim-controls{display:flex;flex-direction:column;gap:14px}
+  .sim-sub{font:600 10.5px Inter;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);margin:2px 0 -2px}
+  .ctl .cl{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:5px}
+  .ctl .cl .name{font:500 12.5px Inter;color:var(--ink)}
+  .ctl .cl .rd{font:600 12px 'IBM Plex Mono',monospace;color:var(--y-blue-d)}
+  input[type=range]{width:100%;accent-color:var(--y-blue);height:20px;cursor:pointer}
+  .sim-out{background:#0f1d2c;border-radius:12px;padding:18px;color:#eaf2fb;align-self:start;position:sticky;top:80px}
+  @media(max-width:900px){.sim-out{position:static}}
+  .sim-out .proj{display:flex;align-items:baseline;gap:10px}
+  .sim-out .proj .big{font:700 46px 'Barlow Semi Condensed';font-variant-numeric:tabular-nums;line-height:.9}
+  .sim-out .proj .dl{font:600 13px 'IBM Plex Mono',monospace;padding:4px 9px;border-radius:999px}
+  .sim-out .cap{font:600 10px Inter;letter-spacing:.16em;text-transform:uppercase;color:#8fb0d4;margin-bottom:4px}
+  .sim-out .gap{font:500 12px Inter;color:#b9cfe6;margin-top:6px}
+  .cmp{display:flex;flex-direction:column;gap:9px;margin-top:16px}
+  .cmp .cr .cl{display:flex;justify-content:space-between;font:500 11.5px Inter;color:#cfe0f2;margin-bottom:3px}
+  .cmp .cr .cl .d{font-family:'IBM Plex Mono',monospace}
+  .cmp .track{position:relative;height:8px;background:#22344a;border-radius:5px;overflow:hidden}
+  .cmp .base{position:absolute;top:0;bottom:0;left:0;background:#3a597c;border-radius:5px}
+  .cmp .proj2{position:absolute;top:0;bottom:0;left:0;border-radius:5px}
+  .sim-gain{margin-top:14px;padding-top:14px;border-top:1px solid #22344a;font:500 12.5px Inter;color:#d6e6f6}
+  .sim-gain b{color:#7fe3b0}
+  .sim-presets{display:flex;gap:9px;flex-wrap:wrap;margin-top:18px}
+  .preset{font:600 12px Inter;border:1px solid var(--line);background:#fff;color:var(--ink-2);border-radius:9px;padding:8px 13px;transition:.15s}
+  .preset:hover{border-color:var(--y-blue);color:var(--y-blue-d);background:#f4f9ff}
+  .preset.key{background:var(--y-blue);color:#fff;border-color:var(--y-blue)}
+  .preset.key:hover{background:var(--y-blue-d);color:#fff}
+  /* ---------- e-ANDON ---------- */
+  .andon-raise{margin-left:auto;background:var(--y-red);color:#fff;border:none;border-radius:9px;padding:8px 13px;font:600 12px Inter;cursor:pointer;display:flex;align-items:center;gap:7px}
+  .andon-raise:hover{background:#c62817}
+  .andon-filter{display:flex;gap:6px;margin-bottom:14px}
+  .andon-filter button{font:600 11.5px Inter;border:1px solid var(--line);background:#fff;color:var(--mute);border-radius:8px;padding:6px 12px;cursor:pointer}
+  .andon-filter button.on{background:var(--slate);color:#fff;border-color:var(--slate)}
+  .andon-ticket{border:1px solid var(--line);border-left:4px solid var(--crit);border-radius:11px;padding:14px 15px;margin-bottom:12px;background:#fff}
+  .andon-ticket.closed{opacity:.6}
+  .andon-ticket.new{animation:flashnew 1.7s ease}
+  @keyframes flashnew{0%{background:#fff6d3;border-color:#e6b800}100%{background:#fff}}
+  .at-top{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .sev-chip{font:700 9.5px Inter;letter-spacing:.05em;padding:3px 8px;border-radius:6px}
+  .at-id{font:600 12px 'IBM Plex Mono',monospace;color:var(--ink)}
+  .at-type{font:600 9.5px Inter;letter-spacing:.05em;text-transform:uppercase;color:var(--mute);background:var(--line-2);padding:3px 8px;border-radius:6px}
+  .status-badge{font:600 10.5px Inter;padding:4px 11px;border-radius:999px}
+  .at-timer{margin-left:auto;font:600 12px 'IBM Plex Mono',monospace;color:var(--ink-2)}
+  .at-timer small{color:var(--mute);font-weight:500}
+  .at-asset{font:600 13.5px Inter;color:var(--ink);margin-top:11px}
+  .at-fault{font:500 12.5px Inter;color:var(--ink-2);margin-top:3px}
+  .stepper{display:flex;align-items:center;margin:13px 0 12px}
+  .step{display:flex;align-items:center;flex:1}
+  .step:last-child{flex:0}
+  .step .dot{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font:700 10px Inter;color:#fff;background:#cdd6e0;flex-shrink:0}
+  .step .lb{font:600 10.5px Inter;color:var(--mute);white-space:nowrap;margin-left:6px}
+  .step .bar{height:2px;flex:1;background:#e2e7ee;margin:0 8px;min-width:16px}
+  .step.done .dot{background:var(--good)} .step.done .lb{color:var(--ink-2)} .step.done .bar{background:var(--good)}
+  .step.cur .dot{background:var(--y-blue)} .step.cur .lb{color:var(--y-blue)}
+  .at-mo{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font:500 12px Inter;color:var(--ink-2);background:var(--line-2);border-radius:9px;padding:9px 11px}
+  .at-mo b{color:var(--ink);font-family:'IBM Plex Mono',monospace}
+  .at-mo select{font:500 12px Inter;border:1px solid var(--line);border-radius:7px;padding:6px 9px;background:#fff;color:var(--ink);cursor:pointer}
+  .at-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:11px}
+  .at-btn{font:600 12px Inter;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:8px;padding:8px 12px;cursor:pointer}
+  .at-btn:hover{border-color:var(--y-blue)}
+  .at-btn.primary{background:var(--y-blue);border-color:var(--y-blue);color:#fff}
+  .at-btn.primary:hover{background:var(--y-blue-d)}
+  .at-btn.good{background:var(--good);border-color:var(--good);color:#fff}
+  .at-note{flex:1;min-width:150px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:500 12px Inter;color:var(--ink)}
+  .at-logtoggle{margin-left:auto;font:600 11.5px Inter;color:var(--y-blue-d);background:none;border:none;cursor:pointer}
+  .at-log{margin-top:11px;border-top:1px dashed var(--line);padding-top:10px;display:flex;flex-direction:column;gap:7px}
+  .at-log .le{display:flex;gap:10px;font:500 11.5px Inter;color:var(--ink-2)}
+  .at-log .le .t{font-family:'IBM Plex Mono',monospace;color:var(--mute);flex-shrink:0}
+  .toast{position:fixed;right:22px;bottom:22px;background:var(--slate);color:#fff;padding:12px 16px;border-radius:11px;font:600 12.5px Inter;box-shadow:0 12px 34px rgba(0,0,0,.28);display:flex;align-items:center;gap:11px;transform:translateY(160%);transition:transform .35s cubic-bezier(.2,.9,.3,1.2);z-index:200}
+  .toast.show{transform:translateY(0)}
+  .toast .ic{width:24px;height:24px;border-radius:7px;background:var(--y-red);display:grid;place-items:center;font-size:13px}
+</style>
+
+<header>
+  <div class="head-in">
+    <div class="logo-pill"><img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAIBAQIBAQICAgICAgICAwUDAwMDAwYEBAMFBwYHBwcGBwcICQsJCAgKCAcHCg0KCgsMDAwMBwkODw0MDgsMDAz/2wBDAQICAgMDAwYDAwYMCAcIDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAz/wAARCADiAcsDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiqOu+IIfD1qZporuVQM4t7d5m/JQTTSbdkJtJXZeoryzxR+1lpHhQt53hX4j3AHe18L3cwP0wteY+Mv+CrvgzwQ7LdfD745SbBktF4Cvtg/4EVArvo5VjKv8Om2cNbNMJS/iVEj6hor4O8Tf8HB/wk8KzNHc+CPjFGydRL4Z8kj/AL7kFchqP/Bzb8FrOUong/4jM4/hktbWI/kZq9SnwhnM9Y4eX4f5nm1OK8oh8VeK+/8AyP0gor8ybn/g59+GC/8AHv8ADrx3N9ZbVf8A2c1UP/B0J4Az/wAks8a/+Btr/jW64Hzx/wDMO/vj/mcz43yNb4hfc/8AI/UGivy+/wCIoTwD/wBEs8a/+B1r/jV7Tf8Ag54+F8+PtXw68e23rse1l/8AZxQ+B88Wv1d/fH/MFxvkb0WIX3P/ACP0zor86LH/AIOYvghMn7/wt8SIG9BYWzj8/ProtB/4ON/2dtUA+1nxzpZPXz9E34/79u1YT4QzqOrw0/uv+R0Q4tyaTssTD77fmfetFfHPh7/gvT+zHr5G7x1d6fk4/wBM0e6jx/44a7jwx/wV0/Zt8XSbLT4veE42Pa6kktf1lVRXFVyDM6fx4ea/7dl/kdlLPstqfBiIP/t6P+Z9HUVwvhb9qD4beN4Yn0jx/wCDNRE/3BBrNu7N+AfNdrZX8GpQCW3mhuIz0eNw6n8RXmVKNSm7Ti16qx6VOtTqK8JJ+juS0UUVmaBRRRQAUUUUAFFFFABRRRQAUVm+KvGej+BdMF7req6do9m0giE97cpbxFznC7nIGTg8e1c7/wANIfDz/ofPBv8A4Orb/wCLrOVanF2lJL5nVRwOJqx56VOUl3Sb/I7SiuL/AOGkPh5/0Png3/wdW3/xdH/DSHw8/wCh88G/+Dq2/wDi6n6xS/mX3o1/svG/8+Zf+Av/ACO0oqromuWXiXSoL/Try11Cxul3w3FtKssUq+qspII+hq1WqaaujhlFxbjJWaCiiimIKK5rxL8ZvCHgvVmsNY8VeHNKvkUO1tealDBKqnkEqzA4PbiqH/DSHw8/6Hzwb/4Orb/4usnXpp2cl952Qy7FzipQpSafXlf+R2lFcX/w0h8PP+h88G/+Dq2/+Lqzo/x38D+ItVgsdP8AGPha+vrp9kNvb6rBLLM3oqqxJP0FJYik9FJfehyy3GRTlKlJJf3X/kdXRRRWxxBRXD6v+0z8OtA1W5sb7x14StL2zkMM8EuqwJJC4OCrKWyCD1Bqv/w1h8MP+iheDP8AwcQf/FVg8VRWjmvvR6Mcnx8ldUJ2f92X+R6BRXn/APw1h8MP+iheDP8AwcQf/FVqeDvjx4J+IWtDTtB8W+HNY1AoZRbWeoxTSlR1barE4GRk0RxNGTtGab9UTUyrG04uc6M0lu3FpfkdZRRRW5wBRRRQAUUUUAFFY/i/4g6D8PrL7Tr2taTo1vjIkvruO3U/QsRmvFfGP/BU74B+CZmiufiPo1zKpwUslluv1jUj9a5q+Nw9D+NUUfVpfmetl2Q5nj/9xw86v+GEpfkmfQVFfLa/8Flf2fWl2/8ACZXAA/iOl3OP/QK6Lw3/AMFUPgB4okVIPiXokDtji6SW3x7EugH61zRznASdo14f+BL/ADPUq8C8R0o81TAVkv8Ar1P/ACPoKiuf8B/Fnwv8UbL7R4b8RaLrsOMlrG8jn2j3CkkfjXQV6EJxkuaLuj5qtRqUpunVi4yXRqz+5hRRRVGQUVk+LfHuheALSK413WdK0WCd/Likv7uO3SRsZ2guQCcDOBWD/wANIfDz/ofPBv8A4Orb/wCLrOVanF2lJL5nVSwOJqx56dOUl3SbR2lFcX/w0h8PP+h88G/+Dq2/+Lq3oPxw8F+KdXh0/TPF/hjUb+5JEVta6pBNLKQMnaqsSeATwKSr0m7KS+8uWW4uKcpUpJL+6/8AI6W5tIryMpNFHKh6q6hgfzrmfEPwK8EeLonTVfB3hbUkk+8LrSoJg3/fSmuqorohUnB3g2jz504TVpK54F42/wCCWn7O/wAQiTqXwf8AA+4/xWmniyb84dleN+P/APg3r/Zv8ZeY1joviTw1KwODpusy7FPrtl3j8K+4a5jxD8bPBvhHV5dP1bxb4Z0y/gAMltd6nBDNHkZGVZgRkc8ivSpcR5jhtYYmcV/idvxdjhlwzgcY3H6rGb8oJv8ABXPzR+Iv/Br54cuopH8JfFTXLGXB8uLVdNiuUz7tGUOPwr5v+MX/AAbn/Hz4eRyzeHZ/CXjq3jBISyvTZ3LD/cnCrn2D1+2P/DSHw8/6Hzwb/wCDq2/+Lo/4aQ+Hn/Q+eDf/AAdW3/xde7hPEzNqD96tGa7SS/NWf4nj4zwowFde7hZwfeKl+TuvwP5ofi5+xt8WfgNI48YfDnxhoMcZIM8+myNbnHcSoChHuDXmiuGJwQSOvtX9YXhbx94d+JNrc/2LrWi69BARHcfYruO6WMsOFfYSBkdjXkXx8/4JlfAr9pRJX8U/Djw9JfSqR9vsYfsF2pPfzIdpJ/3s19pl3izTnb63Q07wd/wf/wAkfCZn4RVKcnHDVrNfZmrfiv8AI/mbpCobqAa/XL9pz/g2UiK3GofCHx1JGRlk0bxIm9T6Kl1GMj/gcZ/3q/Of9pj9hn4r/sg6k8Pj/wAGaro9qH2R6kifaNPn/wB2dMpz6Eg+1foeU8UZZmNlhaq5v5XpL7nv8rn5zm3CuaZdd4mk+X+Zar71t87HkiwqrZChT6jg103gv4y+MfhvcrN4d8XeKNBlTlX0/VZ7Yj/vhhXNg5FFe7OEZrlmrrzPBhVnB80G0/I+m/hn/wAFkP2lPhYYls/ilq+qwRAKIdZgh1FSB2LSIX/HdmvpL4Sf8HNPxN8O+VF4z8C+FPEsQPzzafLLp85H0JkT9BX5pUV4WL4VyjE/xcPH1S5X98bM97CcW5xhv4WIl6N3X3O5+7vwM/4OM/gX8SZIbfxVB4k+H13IcF761+2Wi/8AbWDcR+KCvsr4OftH+Af2hNIF94H8Y+HPFNtjLHTb+Odo/wDeUHcv/AgK/lYrQ8J+LNV8Ba9DquhanqOi6nbndFd2Fy9vMh9nQg18dmPhbgKqcsHUlTfZ+8v0f4s+yy3xUx1NqOMpxmu691/qvwR/WZRX4H/srf8ABwR8bPgM9tY+LXs/idoMZAddTPkaiif7Fyg+Y4/56K31r9VP2Lf+Ctnwd/bait7HRdcHh/xXIo3+H9ZK292W7iI52TDP9wk+wr8zzrgrNMtTnUhzQX2o6r59V81bzP0zJeNMrzNqFKfLN/Zlo/l0fydz6cooor5M+sCiiigDh/2kPgLon7TXwU8QeCdfhSWw1y2MQcqC1tKPmjmX0ZHCsPpjvX8/XxY+EGo/BP4l654S1+zjg1fw/dvaXC+WAHx92RfVXUhgfRhX9Htfnd/wXO/Y1/4Sfwva/GHQbXOoaFGtl4gSNeZ7TOI5zjvEx2k/3W/2a+H41yb6zh/rlNe/T384/wDA39Ln9A+AfHbyvM3kmKlajiH7vaNTZf8Aga91+fKfln9hg/54xf8AfAo+wwf88Yv++BUvWivyKyP7Z5n3P05/4IOftYLf6Fqvwf1e5AuNND6r4fDt9+3J/fwL/uMQ4A7O3pX6P1/Oj8DfjDqf7P3xh8O+NNHJ+3+HbxLpUBwJ4+kkR9nQsp+tf0G/Cf4maV8ZvhrofirRJ1uNK1+zjvbZwc/K652n3U5B9CDX6/wRmv1jCvCzfvU9v8PT7tvuP4j8fuDf7NzhZxh42pYm7fZVF8X/AIErS83zdjoa8x/a9/af0X9kT4Gat4x1grLJbL5On2e7D6hdMD5cK/U8k9lDHtXpN/fwaXYzXVzLHb21tG0sssjBUjRRksSeAAASTX4df8FM/wBtuf8AbK+O8jabPKPBHhhntNEhzhbg5xJdsP70hGF9EA9TXq8SZ2suwvNH45aRX6+i/OyPj/CvgGfE+bKnVTWHpWlUfl0gn3lt5K76HhXxR+IOrfGj4iax4r8S3H9o65rty11dTOM8noi+iKMKoHAAFYP2GD/njF/3wKlor8NnJyk5S1bP9B6NONGnGlSXLGKSSWiSWiSXRJELWduikmKIAck7BX6x/wDBGr/gnZH8H/DMPxV8YaYkXivXIP8AiTWk0QD6RaOP9YQeksowfVUwO5r5y/4JE/8ABPpv2kviBF4+8VWpPgXwvdA21vIny61eoQQnPWGM4Lf3mwvTNfsOqhFAAAA4AHav0bgvh5NrMMRH/Av/AG7/AC+/sfy748eJjhGXDOWT1f8AGknsv+fa9d5+Vo/zIWvK/wBtP9o20/ZU/Zs8TeMp2Q3dlb+RpsLHm5vJPkhQevzHJ9lNeqV+TH/Bdn9po/ED40aR8NdOuN+l+DE+26iEb5ZL6VflU+vlxH8DKa+y4hzP6jgZ1l8T0j6v/Lf5H4Z4Y8JPiHiCjgpq9KPv1P8ABHdf9vO0fmfCOqXUuvardX9+/wBrvr6Z7m5ncZaaV2LMxPqSSag+yRf88o/++RUlFfgz11Z/owtFZaIj+yRf88o/++RXsf8AwT8+LEfwH/bL8AeIWZLe0OpLp14w+UeRcjyXz04BZTz6V5BSMzoN0TFJUIaNgcFWByD+BArXD1nRqxrQ3i0/udzizPA08fg6uBrfDUjKL9JJp/mf0s0V5r+x58ZI/wBoD9mDwP4uVg0ur6TC1yAc7Z0GyUH6SK3XmvSq/oqjWjVpxqw2kk16M/y/x+Cq4PE1MJXVp05OLXnF2f4oKKKK1OQyvG/jfSPht4S1DXte1G10nR9Kha4u7u5fZFAg6kn+nUngc1+V37Zv/BbvxV8R7+70P4T+b4U8PqWjOtSxg6lfDON0asCIFPUHBf8A3elZf/BZ79tq++MHxjuvhlol40fhDwhME1BYn+XU9QHLb8dUiztA/vbj2GPiGvyvijiutKrLCYOXLGOja3b62fRL8fQ/sPwj8HMFSwdPOs8pqpVqJShCSvGEXqnJbSk1rZ3UVbS+2h4t8W6v4/1V7/XtW1PXL2U5afULp7mRj9XJrOVQowAAPalJwK97/Z3/AOCZ/wAYf2mvD0WtaB4cjsNCuFD2+oatOLSK6U/xRAgs6/7QGPevh6GGr4mpy0YuUvLVn9A5jmuX5VhlWxtWFGmtE5NRXotvuR4JSEA9QDX1X8RP+CMnx28AaFNqEWi6P4hit1LvDpd+JLggf3Y2Clj7Dmvlq9sp9MvZ7a5hmtrm2kaKaGVCkkLqcMrKeQQeCDV4rAYjDNLEQcb91YyyfiLK82g55ZiIVVHflknb1S1XzJ/DPiLUfBWrx6houo3+jX8J3R3NjcPbyofUMhBr9B/+Cf3/AAWi1bSte03wd8Yroajpt3IltaeJyoWe1ZiAouwMB0zgeYACM5bPWvzspGUOpBAIIwR61tlua4nA1FUw8rd10fqv6Z5/FfBuVcRYV4XMqSk7aSXxxfeMt/ls+qZ/SvFKs8SujK6OAyspyGB6EGnV8k/8EZ/2j7v48/sjwabq1y11rXgW6OizSOcvLAFDW7t6nyztz/0zr62r94wGMhi8PDE09pK//A+Wx/nVxHkdfJszr5XiNZUpON+66NeTVmvU/OL/AIOHNWR/Bfwu0ttjCXUr26ZGGfuQoqn/AMfNfl/9hg/54xf98Cv0N/4OD9dE/wAXPhvpgbm20m7umGf78qKP/QDX571+M8XTU82q+Vl/5Kj+7PBWg6PBuDX83O/vqS/Qi+wwf88Yv++BX1F/wRq8KRa1/wAFB/Ccqwx50yyv7zIUDbiApn/x+vmKvtf/AIIN+Hxqn7Y+sXxH/IL8NzMDjvJNGlcWQUlPMqEf7yf3a/oe94k4t0OFcwqX/wCXU1/4EuX9T9gaKKK/fj/NsK/CD/gqVqsfij9v/wCJU7pG5tr6KzyVGf3UEa1+79fz3/tj+IT4r/a2+JeoFt4uPEl4AfULIVH6LXwPiBO2EpQ7yv8Acn/mf0h9GrDt5zi6/wDLSt/4FOL/APbTzL7DB/zxi/74FH2GD/njF/3wKlor8osj+yuZ9z9WP+DfLw4mn/ADx1qKxpGb/wAQLDlVxuEUCf8AxZr9AK+N/wDghhof9mfsNRXJXa+o67fTE4+8AyoP/Qa+yK/eeGqfJldBf3b/AH6/qf5zeK2J9vxdj59qjj/4ClH9Aqpr3h+w8VaNc6dqllaalp94hintbqFZoZ0PVWRgQwPoRVuivdTad0fnrSasz83f25v+Dd7wJ8WrG+134QTReAvEx3SjSpGZ9GvGx9wLy1uSe6ZUZ+6BX47fHf8AZ98Z/syfEW68KeO/D994d1y058m4XKTpniSJx8siHsykiv6q68i/bJ/Yk8BftyfC2fwz420tJnRWbTtThAW90mYjiSF+o91PysOCDX6Pwz4h4rByVDHt1KffeUfn1Xk9ez6H5xxN4eYTGxdbAJU6vb7L+XR+a+aP5gKK9l/bm/Yg8X/sF/G258IeKY/tNrMDcaRq0SFbfV7bOBIv91xwHTqp9QQT41X7zhcTSxFKNehLmjJXTR+B4vC1cNWlQrx5ZRdmmFFFFbnOFOhle3nSWN3iliYOjoxVkYdCCOQR6im0UAmfo9/wTY/4L5+JvgPLYeD/AIxz3/i7wcCsMGuHM2qaQvQeZ3uIgPX94AOC3Sv2o8B+PNG+KHg7TfEPh3U7PWdE1iBbmyvbSQSQ3EbDIZSP/wBYOQea/k5r7U/4JB/8FU9W/Ya+JNr4V8TXk178KPEFyFvIHJY6DM5x9rh9Fz/rEHBHzD5hz+WcZcBUsRCWNy2PLUWritpei6S/B+p+r8G8f1aE44LMpc1N6KT3j6vqvxXof0EUVBpmpW+s6bb3lpPFc2l3Gs0M0TBklRgCrKRwQQQQfep6/CmraM/dU76oKo+J/DVh4z8OX+kapaxXum6nbva3VvIMpNE6lWUj0IJq9RSaTVmVCcoSUouzWx/P/wDtr/ss3/7Hv7Q2s+D7gSy6Wrfa9GunH/H3ZOT5Zz3ZeUb3X3ryev2n/wCCuv7G7ftP/s7SazotqsvjHwQH1CxCr895b4zPbe5ZRuX/AGkA7mvxXRg6gjOD68V+F8SZQ8vxjhFe5LWPp2+X5WP9DfCvjZcS5HDEVX+/p+5UX95bS9JrX15ktha/TD/ggx+1V5tnrXwh1e6y1uX1fQA7f8syf9IgX6MRIB/tPX5n10Xwk+Kes/BD4maL4u8PXAtdZ0G5FzbOw3ITggqw/iVgSCO4NcuS5lLAYyGIWy0fmnv/AJrzR7PHnClPiLJK2WSspNXg30mtYv06P+62fpD/AMFt/wBuoeGtCb4OeFr4rqWqRrL4kuIHw1rbHlbXI6NJwWH9zj+Kvy8AAGBwBWh4u8V6j488WanrmsXc1/qusXUl5eXMrZeaV2LMT/IDsAB2rPoznNamYYqWIntsl2XRf5+YuBeD8Nw1lFPLaGst5y/mm936dEuiS63CvXf2Jv2RdZ/bO+ONl4X07zrXSbfF1reoquVsLUHnB6eY/wB1B689Aa858AeA9X+KfjjSfDegWUmo61rdytpZ26DmR27n0UDJJ7AE1+7P7Cf7G+j/ALFnwQtfDtl5V3rd7tutb1ELhr65I5x3EafdQdgM9Sa9HhnIZZjiLzX7uPxefl8+vZfI+Z8WfEWHDGW8mHaeKqpqC/lXWbXZdO8u6TPSvhh8NNF+Dnw/0jwv4dsYtO0XRLZbW0t4xwiKOpPdickk8kkk9a3qKK/bIQjGKjFWSP4CrVqlWpKrVblKTbberberbfdnDftKfHLTv2bfgX4m8banhrfQLJ50izg3M33Yoh7u5Vfxr+fHxj4x1P4ieL9V8QazcNd6vrl3JfXkxOd8sjFm/AZwPYCv0L/4L1ftRDUtc0H4SaXcZjsgmta5sbjeQRbQn6DdIR7pX5x1+Q8bZp9Yxn1aD92np/289/u2+8/tvwB4S/s3I3mleNquJ1XdU18P/gTvLzTj2CtjSPAWq674K1zxDa2jyaP4bktYtQuOiwvcuyQr7lip+gGaxnYIpYnAAya/UL4HfsSHR/8AgjB4ytbmz2+JPG+myeKZNygOhiCy2yZPTEcQP/bRq8DKcrnjZzjD7MZS+5aL5v8AC5+kcZ8X0Mgo4epW3rVadNekpLnl/wBuxv8ANo/L6imxSCaJXHRwGH406vKPsT9X/wDggN8Xh4i+AHinwVPKDP4W1Y3duhbkW9yu7AHoJFk/Fq++a/F7/gin8Yv+FY/ts2WkTzeVY+NtPm0tgTgGdB50P4koyj/er9oa/a+DsZ7fLIRe8Lx+7Vfg0fwN45ZJ/Z/FlapFWjXSqL1ekv8AyZSfzCsnx74kXwb4G1rV3OE0qwnvGPtHGzn+Va1YvxI8Mnxr8O9f0ZSA2r6dcWQz0/eRMn/s1fTVObkfLufk+FVP20Pa/DdX9L6n85Or67ceKdZvdVu5DLd6pcSXkznq7yOXJ/M1XqbUtEuPDGp3Wl3kbQ3emTvZzxt1R42KMPzBqGv5vd7+9uf6nw5OVez+Hpbt0NPwS2lp430NtdDHQl1G2OpADJNqJV83/wAc3V/Rl4L1bSNc8I6Zd6BPY3OiT20bWElmytbtDtGzYV424xjFfzdV6B8F/wBqv4kfs8Nt8GeMtb0K2Lb2tI5vMtHPvC+U/ICvqOGeIYZZKaqQ5lK2q3Vr/fv5H5F4seGdfiylQlha6pzo81lK/LLmt21TVt7O5/QxX5Vf8F1P2X7fw58XfDHjrw5pFy9z4wSa11aKytmkEtxCFKTEIDhmRtpPfYO9ch8M/wDgu18YPCLxp4g03wt4tt1wGMlu1lOw74aM7c/8ANfTPwf/AOC9nwy8XvDB4v0DxF4NuWwGmCLqFop9d8eHA78pX1+OzrKM3wzws6ns27NOS2a/DbTfqfiHDvAXGvBOaxzahhfrEIqSlGnO/Mmtmrc+jtL4Hqkfl3p3wL8c6wB9k8E+L7oH/nlo1w38krd039jv4uawB9l+F/j2fPTbo0w/mBX7xfCT4/8Agn48aQt94P8AFGi+IbcruP2O5V5EH+0n3l/4EBXYVy0eAsNOKmq7afVJf5s9nHfSOzShUdGeXRhJbqUpXXqrRZ+dP/BDn4G/En4HeN/iFD4w8HeIvC2katZWc1u+pWphW4njeVSFyeoRh+dfotRRX2mU5bHAYaOFhJySvq/N3PwTjLiirxFm1TNq9OMJTUbqN7e7FR63eyPx7/4Lw+IP7U/bM0uxzkaV4bgX6eZLK9fFdfT/APwWO8Qf29/wUE8XKG3Lp1pY2g9sQBiPzavmCvxTP6nPmVeX95/hp+h/ffhxhvYcLZfT/wCnUH/4Eub9Qr9Df+De7QvO+J/xJ1MrkQabaWqt6FpXYj/x0V+eVfTn/BPH/gopD+wbpviqFvB8niebxNPby+at+Lb7OsSsu3BRs5LZ7dKvh7FUcNmFOviHaMb66vo7beZz+J2U4/M+GcVl+Ww56tRRSV0vtxb1k0tk+p+3lFfmp/xENx/9Epuf/B4n/wAao/4iG4/+iU3P/g8T/wCNV+qf64ZT/wA/f/JZf5H8df8AEEeM/wDoD/8AKlL/AOTP0nurhbS1klf7sSlz9AM1/OD4+1Y6/wDEDxBfsxc3uqXU+T33TOR+hr9DNd/4OCxq+h3tonwtuIXuoHhWQ62pCFlIDY8rnGa/NxQQDk5JJJPqSc18TxlnWFx3so4WXMo819Gt7W3S8z+gPAvgTOOHnjKmb0fZup7NR96Mrpc9/hbtutxaKKbO/lwu391Sa+HP6CSP3H/4JF6AdA/4J9/D8EAG9gnu+nXzLiQg/livpOvIP2ANA/4Rn9ib4W2gGMeG7OXH/XSISf8As1ev1/QuVQ5MFRh2jH8kf5lcYYn6xn2Nr/zVaj++bCiiiu8+cCiiigD5/wD+ClH7Dmk/t5fsy6t4XuIoI/Edgj33h2/YDdZ3qqdo3do5MbHHoc9QK/mt1zQ73wxrd7pmpW0tnqOm3ElrdW8gw8EqMVdD7hgR+Ff1pV/Pn/wXt+A0HwU/4KGa5fWUHkWHjqyh19QBhfObMc5H1kjLH3Y1+veFudTVWeWVH7rXNHya3XzWvy8z8h8UslhKjDM6a95Pll5p7P5bfM+L6KKK/aj8RCiiigAoIyMHkGiigD9zf+Ddn9sK7+N/7Mep/DvW7prnWfhnLHDZySNmSbTZtxhB9fLZXj/3QlfofX4Nf8G5Xju48M/8FBJtIRytt4k8N3cEy54YxNHKv5bT+dfvLX81cfZdDCZzUVNWU0pffv8Aimz+meAcxnjMmpyqO7heN/Tb8LIKKKK+MPswIyK/FL/grh+x437MH7R82saTZmLwd45Z7+xKLiO0us5ntvQcneo/usR/DX7W15H+29+y5Y/tefs7a34RuBFHqLp9q0m6cf8AHpeICY3z2BOVb/ZY18/xLk/9oYNwj8cdY+vb5/5H6X4VcbvhrPIV6r/cVPcqL+63pL1g9fS66n4B0VZ1vRLzwzrd7pmo27Wmo6bcSWl1A3WGWNirqfowIqtX4Y007M/0MjJSSlF3TCkdwiknoKWvuX/gjf8AsBp8dPGi/E7xXaLJ4S8NXW3S7WVcrqt6nO8joYojjr958Doprty3L6uNxEcPR3f4Lq36Hz/FPEuDyDLKmZ45+7BaLrKT2ivNv7ldvRM+kv8Agj3/AME+l+AvgeH4keLbDZ438SW3+hW86fPotk4BC4P3ZZBgt3Awv94V9w0UV+8Zbl9LBYeOHorRfi+rfmz/ADo4o4lxmfZlUzPHO8pvRdIx6RXkl9+71bCuf+K3xK0z4OfDXXPFWszLBpegWUt7cOTj5UUnaPcnAHuRXQV+dP8AwXp/aibQ/CWhfCbS5wJ9dxq2tlG5W2jbEMJ/35AWIPaIetZZxmMcDg54l7paebe34/gdvA3DFTiDO6GVw2k7yfaC1k/u287I/OD4v/FHUvjd8VfEPjDV3Z9R8SX8l9KCc+WGPyRj2RAqgei1zlFFfgE5ynJzk7t6s/0moUKdGnGjSVoxSSS2SSskvRHon7JXwHuf2mP2kPCHgq3Rmh1a/V75wM+TZx/vJ3P/AABSPqwr+gaXw5ZyeGm0hYI49Pa1NmIVUbVi2bNoHpt4r85P+CAv7PIW08WfFG+h+aZv7B0pmXoikPcOPq2xf+Amv0pr9e4Iy32OBdea1qa/JaL9X8z+JfH/AIpeP4gjl1GXuYVW/wC35Wcn8vdj5OLP5xPil4Jl+GvxQ8S+HZwVl0LVbmxYH/pnKyj9AKwq+kv+CuPw3Pw2/b68aBU2W3iBbbWoD/e86IK//kSN6+ba/Ksfh/YYmpR/lk19zP7G4czNZjlWGx6/5e04S+copv7ma/w98d3nwt+IGg+J9PdkvfDuowajCQSOYpFcjjsQCD7E1/Rh4Q8T2vjbwppms2LiSy1a1ivIGBzuSRA6n8iK/m3KhgQeh4Nftz/wR8+MZ+Lv7DXhmOaXzL/ws8uhXOWy37k/uyfrGyflX2vAGM5cRUwz+0rr1X/Af4H4F9JLJPa5dhc1gtacnB+k1dfc4/8Akx9QUUUV+qH8en5df8Fgf+CberWPjPUvi34E02bUdN1P9/4i0y1j3TWcoHzXaIOWRgMuBypG7oTj860cSKCpBB7iv6WSMjB5Br5K/a0/4I8/DP8AaRubvWNGSTwH4puSZHvNMiU2ty55JmtzhST/AHkKn3NfnfEPBkq1SWJwO71cXpr5Pz7P7z+n/DPx2pYHC08p4hTcIJRjVSu1FaJTW7stFKN3ayae5+LlFfVvxt/4Iz/G34SzyyaXpVj4405OVn0eYCcj3gkw2f8AdLV80eNvAGv/AA01A2niTQtY0C5U42ahZyW5J9iwAP4GvzvFZficM7Yim4+q0+/Y/p3JuJspzaCnluJhVv0jJN/OPxL5pGTRSKwcZBBB7ilrjPcL/hTxVqvgPXodV0LU9Q0XVLc7oruxuGt5kPsykGv0O/4J/f8ABaXU49f07wd8Y7mK7tLt0trPxOEEckLn5VF2o+UqTgeaoGCcsO4/OKkdBIpVgCCMEHvXpZZm2JwFRVMPK3ddH6r9dz5TizgvKeIsK8NmVJN292aXvx84y3+Wz6pn9LEciyxq6MGVhkEHII9aWvj/AP4Iv/tSXn7QH7MUuhazcSXWu/D+4TS5JpG3PcWrJut3PuFDIf8Arn719gV+7ZfjYYvDwxNPaSv/AJr5PQ/zu4lyHEZLmlfK8T8VKVr91umvKSaa9T8D/wDgovr3/CSft2fFO5DF0TXHt1J9I0RMfmprxeux/aK8Qjxb+0N4+1QNuGoeI7+YHOeDcOP6Vx1fgGNqe0xFSp3k397Z/pNkOG+r5XhsP/JThH7opBRRUUl/BC5V5olYdQWAIrlbS3PXSb2JaKg/tO2/5+If++xR/adt/wA/EP8A32KXMu4+SXYnoqKK9hnfaksbt6BgTUtNNPYTTW4VFeqzWcoQbnZCFHqccCpa0vBmkP4h8a6Hp8Yy9/qVrbgYzndMi/1pqLeiJlUUE5vZa/cf0QfBbQl8L/B3wppqLsXT9HtLcL6bIUX+ldNUdrbraW0cSDCRKEUegAxUlf0jTjyxUex/ldiKzq1ZVXvJt/e7hRRRVmIUUUUAFfjf/wAHQ+mwx/Fb4R3ioguJtK1CF2/iZFliZR9AWb86/ZCvxL/4Oa/H0OuftVeA/D0Ugd9A8OPcTL/ce4nbH5rGDX3Ph1CTzym10Ur/APgLX5s+H8RZxWRVVLq42/8AAk/yPzXooor+jz+awooooAKKKKAPu3/g3V8Iz+IP+CicWoJFvg0Pw7fXErf3C+yJfzLGv3vr8r/+DZL9nafQ/hz49+KN7BsHiG6j0PS3YcvDb/PMw/2TIyr9YjX6oV/N/iJjI4jOpqLuoJR+a1f3N2P6U8PMHLD5JTc1Zzbl9+i/BXCiiivhz7gKR3EaFmICqMknsKWsX4k6uPD/AMOtfv2OFsdNuLgn02RM39KmUuVOT6GlKm6k401u2l95/O18SdbfxL8S/E2pStuk1DWLy4Y+u64cj9MVjU2OUzp5jElpCWJPck5p1fzc5OT5n1P9UaVNU4KmtkrfcFft/wD8EffD58P/APBPjwHuGGvlur3PqJLmVgfyxX4fTP5cLt/dUmv36/4J/eGv+ER/Yn+GFhjb5fh61kx/vpv/APZq+54Ap3xtSfaP5tf5H89fSRxPLkGGofzVk/8AwGEv/kkewUUUV+tH8Xmf4s8U2HgfwvqOtapcR2mm6TbSXl1O5wsUUalmY/QA1/Pn+098er79pz4+eJ/HF8ZF/ty7ZrSJzzbWq/LBH+CAZ9ya/TH/AILpftOf8K4+A1h8OtOn26r48ctehT80enxMC+faR9qfQNX5JV+U8d5p7SvHBQekNX6vb7l+Z/ZH0d+EfquXVM+rx9+t7sPKEXq/+3pL/wAlXcKKKK+BP6QPc/g7/wAFJfjJ8Afh1p3hPwl4msdJ0DSlZbe3Gj2srDc5dmZ2QszFmJJJzW//AMPe/wBorP8AyUCP/wAEll/8ar5torvhmuNhFQhWmktkpPT8T5qvwXw/WqyrVsDRlOTbbdKDbb1bbcbtt7s7z9oP9pnxp+1P4qsdb8dapBq+qadafYYJ47OK12w7y+0iNQG+Yk5PPNcHRRXJVqzqTdSo22929We5hMHQwlGOHwsFCEdFGKSSXklogr9CP+Df/wCNA0X4oeNvAFzMFi1yzj1qyRj1mhPlyqvuUdD/AMAPpX57169+wP8AF/8A4UX+2N4A8QyS+TaJqa2F42cDyLgeS+fYbgfwr0sixn1XH0q3ROz9Ho/wZ8r4iZGs34bxmBSvJwbj/ih70fvaS+Z+/VeHfEz/AIKSfBL4QeL9S0DX/H+l2WtaRMba8s1hmllt5AASrbEIzgj869xr8Lf+CrPg6bwX+398QkliaJdUuINTiJHEiSwJ8w/FSPqDX61xPnFfLsPGtQineVne/Zvo12P4t8JeCMv4ozSrgMwqSgo03NcjSbalFW95S6PsfpRq/wDwWg/Z/wBLJEfirUL7H/PtpNw2fzUVzerf8F2fghYr/oyeMb856R6Tsz/304r8daK+Cnx1mT2UV8n/AJn9H0fo78Kw+OVaXrOP6QR/Q/8As3fH7R/2oPgzo3jjQYb230rW1kaCO7QJMmyRoyGAJAOUPeur8QeGNN8W6e1pqunWOp2jjDQ3cCTRt9VYEV+fn/BBz9qSw1H4d6t8JtTu4odW0i6k1LRo5Hwbu1l+aVEz1Mcm5iB2kz2NfojX6Xk2PjjsDTruzbXvevX8fwP5P464dqcP5/iMvgnGMJNwfVwesHfrpo33TW58sfH/AP4I9fBf412d1Lp+gjwTrU2WS+0T9ygc92g/1TD2AU+4r8j/ANqH9m3xB+yb8Z9U8F+I1jkubLE1rdxAiHULZ8+XMmegOCCOqsCO1f0L1+Lv/BaT446L8Z/2xfsuhzwXlt4N0tdGuLqFgyTXHmNJIoI67CwUn1DDtXyHGuVYKlhliacVGd7aaX76eW9z9v8AAPjHP8Zms8rxNSVbDqDk+ZuXI1a1pPWz25b26paHyTRRRX5gf1ufoN/wb2z3A+MXxLiBf7I2jWTsM/L5nnygH67c1+o3iLUho/h++uyQBa28k2T22qT/AEr4T/4IEfByfwr8A/FXjS6jZG8YaosFpuXG63tVKbh7NI8n/fIr69/ai8QN4U/Zr+IGpIwV7Hw7fzIc4+YW8hH64r9r4XhLD5NCU+0pfJttfhqfwL4uV6eY8dV6dDX3qdP5qMYv7ndfI/nmvNR/tjULq8/5/biW5/77dn/rUdRWI22UI77F/lUtfiaZ/fXKo6LoBbYMnoOa/c7/AIJs/CnR7L9hL4YLfaLpU93Lokc8sktpG7u0jM+SSMn71fhZenFnL/uEfpX9En7MXh7/AIRP9m/wDpm3abHw9YQsMY5Fumf1zX33AFFSxVWbW0Uvvf8AwD+cPpJY2VLKcHQg7OVRvT+7G3/txv8A/CtfDn/QA0T/AMAYv/iaP+Fa+HP+gBon/gDF/wDE1tUV+p+yh2R/H31uv/O/vZ8Rf8FwtJ0fwj+xMEsdN0yxudS8QWNvvhtY43ZQXdhkDP8ADX5CV+rX/BwVr32T4BeBNNzg33iFpvr5Vu//AMWK/KWvxvjWSeZuK6Riv1/U/ujwDpSjwlCpN3c6k3r6qP8A7aFejfseeHz4q/a0+Gen7S3n+JbEkYzkJKrkfktec175/wAEuvD58Sft+fDWHaSLa/lvPp5UEjV8/l9P2mKpQ7yivxR+mcT4n6vk+Lr/AMtKo/ug2fu5RRRX9EH+YYUUUUAFFFFACSSLEjMzBVUZJJwAPWv5m/8Agpn+0an7VP7cXj/xdazm40lr86dpb54NpbDyY2Hs20t/wKv2f/4Lb/trx/sjfsd6np+mXYh8YeP0k0XSVRsSQRuuLi4HcbIyQD/eda/noRBGgUdAMCv2nwtyaUYVMyqL4vdj6byf32XyZ+K+KmcxlKnllN7e9L16L7rv5oWiiiv18/HQooooAK6f4K/B/W/2gfi14e8E+G7drnW/E17HY2qgZCFj80jeiou5mPYKa5dmCKSSAAMk+lftr/wQH/4JrN8DfAK/GTxnp5i8X+K7XbodrOmH0nT3GfMIPSWYYPqEwP4jXz3E2fU8pwMsTL4npFd5f5Ld+R9HwvkFTNsdHDx+BayfZf5vZH3f+zR8BtH/AGYfgN4W8BaFGqad4ZsI7RWAwZ3AzJK3+07lmPu1dzRRX8uVas6s3UqO7bu33bP6lpUoUoKnTVklZLskFFFFZmgV5n+2f4j/AOES/ZK+JGoA4Nv4cvf/AB6Fl/rXplfPf/BVXXz4e/YA+JMoYBp9OS2Hv5k0aEfkTXFmVT2eEqz7Rk/wZ73C2G+sZ1hMP/NVpr75pH4UWy7beMeigfpT6QDaAPSlr+eD/Ttkd0pe3dQMlhtA9c8V/Rn8DtEXw18FvCOnqMLZaNZwD/gMKD+lfzweENMbW/GOjWSjc15qFvAB67pVH9a/pC06zXTtPgt0GEgjWNR6ADAr9I8PafvV5/4V+Z/K/wBJrE/u8vw/nUf/AKQv1ZNUV/fQ6XYzXNxKkNvbxtLLI5wsaqMliewAGalr4+/4LPftSn4D/svv4a025EXiL4hO+mw7Ww8FoADcy+3ylYx7ye1foGYY2GEw08TU2ir/AOS+b0P5q4ZyGvnWaUMrw3xVZJX7LeUvSKu35I/ML9uP9pK4/au/ad8TeLmkkbS3n+w6PE3SGyhJWPA7F/mkPu5ryWkVQigAYAGAKWv58r151qkq1R3lJtv5n+l+XZfQwOFp4LDK0KcVGK8krL/g9xGYIpJOABkn0r7h/Zz/AOCIviT49fBLw74xufGtl4cfxFai9j0+XTHmkgjYnYWbevLLhunG4V8r/s0fBW7/AGi/2gPCPgm0VmOv6jHFcMBnybZfnnkPssat+lf0L6NpFv4f0i1sLOJYLSyhS3gjXpGiKFVR9ABX2PCGQUcf7Srio3hHRata79Oy/M/D/G3xIx/Dqw2CyiooVp3lJ2jK0FolaSa9531393zPzF/4h6Nc/wCio6Z/4Jn/APjtJ/xD0a//ANFR0r/wSv8A/Ha/USivtv8AU3Kf+fb/APApf5n4D/xHTjP/AKCl/wCC6f8A8gflb4r/AOCAXiHw54V1PUYPiNp19PYWktxHbLpLIbhkQsE3GTjcRjPbNfnvDJ50KtgjcM4Pav6WXQSIVYBlYYIIyCK/nh/ad+HDfCD9pHx74YKFE0bXruGIHAPlGQvGeOOUdTXxfGGQ4bARpVMLGyd09W9dLb/M/ePA/wARc14iq4vC5xVU5wUZR92MdLtS+FK+vKcNSMXUbomKSqQyMDgqw5B/A4paK+HP6DP6DP2NfjJH8f8A9lzwN4tRw8uraTCbnnJW4QeXMD7iRGr4u/4L1/svzatoegfFnS7eSVtIUaPrflru2W7MWhmOOgVyVJ6DetdD/wAEBPi+fEPwJ8WeCbiYNL4X1X7ZaoW5FvcruIA9BIj/APfdfd3ifwzp/jTw5faRqtpBf6ZqcD211bTLujnjcFWVh6EGv22nSjnOTRjN6yite0l1+9fcfwDiMbV4F46q1KEbwpVH7u3NSnql68klbs0n0P5taK+uf26/+CS/jX9mrxFf6z4O06+8W+AZHaaF7RDNe6ShOfKmjHzMq9BIoORjIBr5FDhnZc/MhwyngqfQjsa/Hcbga+EqujiI8rX4+a7o/uTIOIsuzrCRxuW1VUg+268pLeL8mXNB16/8K63a6npd7d6bqNjIJba6tZWimgcdGVl5Br6v+HH/AAW2+OPgPQYrC+ufDninyU2Jc6nYlbkj1domUOfcrn1zXyLRTwmYYnCtvD1HG/Z/oTnXDOU5vGMczw8KvLtzRTa9Huvkz6c+O/8AwV3+Nfx28PzaQ2tWPhTS7lSk8ehQGCaZSCCpmZmcKQeilc+tfMYH1OTkk9SaKbJKsK5dlUe5xUYrG18TLnxE3J+b/qxtk+Q5dlVL2GW0I0ovdRSV33fVvzdx1d/+zD+zf4g/au+M2leDfDtvK0t5IHvrsLmLTLUEeZPIegAHAHVmIArtv2VP+CdHxP8A2tNTt30fRJ9E8OyN++13VYWhtUXuY1OGmPoFGPUiv2D/AGNP2K/CX7FXw2GieHo2u9Su9smqavcIBc6lKB1bH3UGTtQcKPU5J+h4f4Yr46oqlZONLq+/kvXvt8z8z8SvFvL+HsNPDYKaq4t6KKd1B/zTtordI7t7pLU7/wCE/wAMdJ+C/wANdD8KaFB9m0nQLOOztk77VGNx9WJySe5Jry7/AIKW67/wjv7B3xRuA+xm0SWBT7yFY8f+PV7lXyx/wWb18aH/AME/fFsecHUrizsxzj71wh/9lr9XzVxo5fV5dEoSt9x/G3B0KmN4mwSqvmlOvTbb3d5ptv1PxNQbUA9Biloor+fj/Ssm0yw/tbVbO06/a7mKD673Vf61/SL4a07+x/Dmn2mAPsttHDgdtqgf0r+eP9nzQf8AhKfj/wCBdNI3C+8QWMRHsZ0zX9FNfpnh7T92vP8Awr8/8z+TfpM4m9XL8P2VSX3uC/RhRRRX6Qfyyfmd/wAHC/iAtdfC7Sd3AN/e49OIkz/OvzYr7x/4L/699u/aU8FacGyLDw68rL/daS4b+iivg6vwziupz5rWfZpfckf6F+DmG9jwdgY94yf3zkwr6y/4IoaCNZ/b40iZl3Lpuj31zn+6SioP/Qq+Ta+6P+CBOg/b/wBqbxXflcrp/hzaD6NJcIP5Ka5+HafPmdCP95P7tf0PS8TsT7DhPMKn/TuS/wDAvd/U/XCiiiv3s/ziCiiigArC+J/xM0P4NfD3WPFXiXUINK0LQbV7y9upjhYo1GT9SegA5JIA5Na2qapbaJptxe3txBaWdpG0088zhI4UUZZmY8AAAkk9MV+Dv/BZ7/grC/7aPi9vAXga6lj+GHh+63SXCkqfEdyhwJiP+eCHOxT94/Mf4QPpOGeHK+b4tUYaQWspdl/m+i/RHznE3EdDKMI61TWb+GPd/wCS6nz9/wAFDv22dY/bz/aX1fxnfNPb6LCTZeH9OkbjT7FSdgx03ucu5/vNjoBXhtFFf05hMLSw1GOHoq0YqyXofy/jMXVxVeWIru8pO7YUUUV0HMFBOBQSFBJOAK/Q/wD4JDf8EXtT/ae1XS/iR8TrCbTPhtA4uLDTJgY7jxKQcqSOqWuep6ydBxk15mbZvhstw7xOKlZL72+yXV/09D1MnyfE5liVhsLG7e76Jd2+xc/4Inf8EjLj9ozxFp3xZ+I2nPD8P9KnE+jabcx4PiOdDkSMp/5dkYd/9YRj7oOf3AjjWJAqqFVRgADAA9Kg0jSbXQNKtrGxtoLOys4lhgghQJHCijCqqjgAAAACrFfzTxHxDiM3xTxFbSK0jHol/m+r6+lkf0zw7w/h8owqw9HVvWUurf8Al2XQKKKK8A98KKKKACuZ+Lnwe8NfHjwLdeGvFulQ61od6yNPaSu6pIVYMuSpB4IB6101FTOEZxcJq6e6ZrQr1aFSNajJxlF3TTs01s01qmu587/8Onv2ef8AomOjf+BFx/8AHKP+HT37PP8A0THRv/Ai4/8AjlfRFFcH9j4D/nxD/wABX+R9F/rtxF/0H1v/AAbP/wCSPAdD/wCCW/wD8N63ZalZfDfR7e90+dLm3lE9wTFIjBlYZkxwQDzXv1FFdOHwlCgmqEFG/ZJfkeVmOc5hmDjLH151XHbnlKVr725m7BXkvx8/Yb+F/wC0/wCKLPWfHXhhNe1HT7b7HbSSXc8Yhi3FioVHUcsck4yfwr1qiqr4elWhyVoqS7NXX4mWX5li8DWWIwVWVOa05otxeu+qaep82f8ADoj9nn/ondp/4H3f/wAdo/4dEfs8/wDRO7T/AMD7v/47X0nRXH/Y2X/8+If+Ar/I97/XviT/AKGFf/wbP/5I8b+B/wDwT/8AhF+zj46HiXwb4OtNH1xbd7VboXM8rJG+NwAd2AzgcgZr2SiiuyhhqVCPJRiorslZfgeFmOaYzH1fb46rKrO1rzk5Oy2V227BRRRWxwhXhvxW/wCCbnwW+NvxA1DxT4m8EWmpa7qpVru5+1XERmKqFBKo4XOABwOcV7lRWGIwtGvHlrwUl5pP8z0MtzfHZfUdbAVp0pNWbhJxbW9rprS6Wh82f8OiP2ef+id2n/gfd/8Ax2j/AIdEfs8/9E7tP/A+7/8AjtfSdFcn9jZf/wA+If8AgK/yPb/174k/6GFf/wAGz/8Akjyj4A/sRfDH9l7xFfar4F8Mx6Dfalbi1uZI7ueQTRhtwBV3YcHvjNer0UV20MPSow9nRiorslZfgeDj8xxeOrPEY2rKpN296Tcnptq7vQK8j+Mv7B/wg+P18954p8A6Bf6hIMNexQm2uj7mWIqxP1Jr1yilXw9KtHkrRUl2av8AmGAzLF4Gr7fBVZU594ycX96aZ8ceI/8Aghj8DdZd2s4vFekM3QW2rM6J9BIrfzrmZf8AggF8LGYlfFXjpB6faID/AO0q+7aK8qfDeWSd3Qj91vyPsqPinxbSXLHMKnzd/wA7nxL4c/4IMfBvSrnff6l401ZAOI5NQSJc++xAf1r2z4Qf8E4vgp8Dr+G90L4f6IdRgHyXt8jX06n1DTFtp9xivbqK3w+SZfRfNSoxT72V/vZ5+Zcf8SY+Dp4vHVZRe652k/VKyYkcaxIFVQqqMAAYAHpS0UV6h8gFcn8aPgZ4U/aH8Et4c8Z6Nb69ojzx3LWszuqGRDlGypB4PvXWUVFSnGpFwmrp7p6o2w2JrYerGvQk4zi7pptNNdU1qmfO/wDw6e/Z5/6Jjo3/AIEXH/xyj/h09+zz/wBEx0b/AMCLj/45X0RRXD/Y+A/58Q/8BX+R9D/rtxF/0H1v/Bs//kjwnwb/AMEzvgX8PvFum67o/wAO9JsdW0i4S7s7hZp2aCVTlWALkZB9RXu1FFdVDC0aCcaMFFPskvyPJzHN8fmElPH151WtE5ylJpdlzN2Ciiitzzjyb41/sMfCj9ovxgmv+NfBun6/q8dutqtzPLMrLEpJC4VwMZJ7d65D/h09+zz/ANEx0b/wIuP/AI5X0RRXDUyzB1JOc6UW31cVf8j6DDcW55h6UaGHxtWEI6JKpNJLsknZI+d/+HT37PP/AETHRv8AwIuP/jld58B/2Ovhp+zJquoXvgTwnYeHbvVYkgu5IJJHMyKSyqd7HgEk8V6ZRTpZbg6UlOnSimuqik/yFi+Ks6xVGWHxWMqzhLeMqk2n11TbT1Ciiiu08AKpeI/Emn+D9BvNV1a9tdN03T4mnubq5lWKG3jUZZmZsAADua5b9oL9orwd+y38MdQ8X+OdbtND0TT0y0kpzJO/8MUSD5pJGPAVQT+GTX4Nf8FOP+CvPi79vzV5NB0xLnwr8M7OYtb6Ssn7/VCD8s12w4Y9xGPlX/aPNfU8NcKYvOKvuLlpreT29F3fl958vxLxXhMnpXqPmqPaK3fm+y8/uPSv+CwP/BZm7/ayub74b/DS7ubD4aQuY9Q1BcxzeJmU9MdVtgRkKeX6njAr89AMCiiv6NynKcNl2GWFwsbRX3t92+r/AOGWh/N+b5xicyxMsVipXb+5LsvIKKKK9I8sKm03TbnWdRt7Oytri8vLuRYYLeCMySzuxwFVRksxPQCvVP2Rv2IPiR+2744/sXwDoMt7HA4W+1OfMWn6ap7yy4xnHRVyx7Cv3B/4Jz/8Ecvh9+whBba9d7PGPxGMeJdbuosR2RI+ZbSI5EY7bzlyO4BxXyfEfGGCymDjN81XpFb/AD7L8eyZ9dw3wbjc2kpxXJS6yf6Lq/w7s+Wv+CWP/BA9LH+zviB8eNOWS5BW403wfLho4uhWS9xwzf8ATHoP4s/dH6x2trFY20cMMccMMKhI40UKqKBgAAcAAdqfRX8+Z3nuLzWv7fFSv2S2S7Jf031P6GyXIsJldD2GFjbu+rfdv+kgooorxj2AooooAKKKKACvGPE3/BQT4T+EPEd/pOoeJ/Iv9Mne2uI/sU7eXIhwwyEwcEdq9nrxrxL+wB8JvF3iO/1bUPCsc9/qdw91cyfa518yRzlmwHwMk9q8zM/7Q5Y/2fyX6897W8rHRh/YXft728rfqZ//AA8m+Df/AENn/khcf/EVqeCv29PhZ8Q/F2naFpHiX7VqmqzC3tYfsU6eY5zgZKADp3NfKHh79mfwXff8FJ9R8ATaKh8JwWDzR2PnyYDC3Rw27du+8SetfWPgv9g/4WfD3xbp+uaR4YS01TSphcWswu5m8pxnBwXIPXuK+cyvMM9xcpO1JRhNwl8d/dte36XO/EUMHSS+K7V1t12uev0VzvxC+Lnhj4TWUdx4l17S9EimOIzdzrGZPoDyfwFL8Pfiz4Z+LGnyXXhrXdM1qCI7ZGtJ1kMZ/wBoDkfiK+w+s0vaex5lzdrq/wB255fs5cvNbTudDRRXL/ET42eEfhIsR8S+ItJ0Uz/6tbq4VHf3C9ce+KqrVhTjz1Gkl1eiFGLk7RV2dRXIfGH47+F/gLpFlfeKtS/sy11C4FpA/kvLvkIJC4QEjgHrWp4E+JGgfE/SDf8Ah7WNP1mzB2tLaTLIFPocdD7GvmP/AIK9f8ki8H/9jAn/AKLavLznMZYbL6mMw9pNK66p6rs/1OjCUFUrxpT0ufWkE63MCSIcpIoZT6g8in1wniT9oLwR8KotPsfEXinRdHvZbeMrBc3KrJgqMEr1APvXYaD4gsfFGkw3+m3lrf2Vwu6Ke3lWSOQeoYcGvRp4ilOThGSclur6r1RhKnJK7WhborL8ReNtH8Iz2cWq6pp+myahL5NqtzcLEbh+BtQMRuPI4HrXP+Nf2i/Anw51xdN1zxZoWmagxA+zz3arIpPTcM/L+OKdTE0aabqSSt3aQRpyl8KudpRUOnajb6vYxXVpPDc206h45YnDpIp6EEcEVJNMlvC8kjrHGgLMzHAUDqSfStU1a5A6ivPrb9q74a3fiI6TH448NNqG/wAvyvtyct6bs7f1r0BHWVAykMrDIIOQRWVHEUqt/ZSUrdmn+RcoSj8Sscd4s+P3hTwP8T9E8G6nqf2fxF4hQPYWvkyN543Fc7gCo5U9SOldlXx5+1X/AMpNPgz/ANei/wDo6avsOvOyzH1MRWxFOaVqc+VW7cqev3m+IoRpwhJfaV/xCiuI8d/tJeAvhlrP9n6/4t0PS77GTBNcqJF+oHI/Guo8N+KNN8ZaPDqOk39pqVjcDMdxbSrLG/0IOK9GGJozm6cJJyW6TV16owdOSXM1oX6KK4rVv2j/AAFoPiv+w73xh4ettW3bDbSXqK6t/dPOAfYnNOrXp0knUklfu7CjCUvhVzta5P4xfG/wz8BPDMWseKtR/szT5p1tkl8l5cyMCQMICegNa48c6KfEsejDVtNOryxeell9pT7Q8eM7wmdxXHfFcP8AtV/CvwP8Xfh3b6b491QaRo8d6k8c325bPMoDBV3twcgniufG1qiw85YVxc1td6X8zSlCPOlUvby3+R6PpuoRatp1vdW7b4LmNZY2xjcrAEH8jU1VNBs7fTtDsre0fzLWCBI4W3btyBQFOe/GOax/iH8XfDHwmsY7jxLr2maJFMdsZu51jMh9h1P4CuiVWMIc9VpLq+hmouTtFXOjornvh78WfDPxZ0+S68Na7pmtwQttka0nWQxn/aA5H4iuhqqdSFSKnBpp9VqhSi4uzQUVxHjr9pTwD8M9YOn694u0LS75fvW810okT6qOR+NdP4X8WaZ420aLUdH1Cz1OwnGY57aVZY2/Ed/as4YmjObpwmnJbpNXXqinTklzNaGhRRRW5AUUUUAFFFFABRRXHfHH9oLwX+zZ4GuPEnjnxHpfhvR7cH99eTBTK39yNPvSOeyqCfarp0p1JKFNNt7JatkVKkKcXOo7Jbt6I7GvkP8A4KGf8Fi/hv8AsMWV3o1vcQ+MfiGEIi0GxmBFm2OGu5RkRD/Z5c9gOtfAn/BQr/g4O8UfGqO+8K/BuK98GeGJd0M2uzYXVtQTofKAyLZSO+TJ7r0r83bm4kvLqWeaSSeedzJLLI5d5WJyWZjyST1Jr9Z4a8NZ1LYjNvdXSC3f+J9PRa+aPybibxLp0r4fKvel/O9l6Lr6vT1PUP2tP2zfiF+2x8R5PEnj3W5b90ZhY6fCTHYaXGf+WcEWcL7scs3Uk15ZRRX7Nh8PSoU1SoxUYrZLRI/FsTiauIqOtXk5Se7e4UUsaNLKkaKzySMERFGWdj0AA5JPpX3B+w3/AMEI/iv+1U9nrXiuOT4a+DJsSfadQgJ1K8Tj/U2xwVyP4pdo9A3SuXMc0wmApe2xdRQj59fRbv5HVluU4vH1fY4Sm5Py2Xq9l8z4r8OeG9R8Y69a6Vo+n32rapfOIrazs4GnnnY9FVFBYn6Cv05/YC/4N1ta8cCy8TfHO5n8P6W2JY/DFjKPt046gXMwyIh6omW9Spr9Jv2Ov+CeHwr/AGHPDy23gjw9CmqyJsu9bvcXGpXh77pSMqp/uoFX2r3CvxviHxLr106GWLkj/M/ifp0j+L9D9n4d8M8Ph7V8yftJfyr4V69/wXqc18JPg74W+A3gSy8MeDtC07w7oOnLtgs7KIRxr6k92Y92YknuTXS0UV+WznKcnObu3u2fqUIRhFQgrJbJBRRRUlBRRRQAUUUUAFFFFABRRRQB8WeFf+Uxeq/9guT/ANJY6+wfGHii28E+E9T1i8OLXS7WS7lwedqKWIHvxXx94VOf+Cxeq8Ef8SuT/wBJY6+jP2vraW7/AGX/AB5HCrNI2i3GABk/cJP6V8fkVWVLDY2pHdVar+5I9TGRUqlKL6xifK/7Kf7O8f7efiTxB8UPiVLeX9jcXr2unadHO0cSquDtyDkIgKqApGTkk079p34FRf8ABPvxx4a+Jvw7e9s9GN6tlq2mvM0sbI2TtyTkqyhhgk4YKQa5z9kH9k3x78XfghY634Y+LF74X02eeaNtNgjmKwSK2GyVkUZIwencV23jr/gm/wDEHxRoRs/Efxta+0+SQERahbyvEZOdpw02N3XFfK0MJXq5dGpSwcnWdpKrzQu5b3ve9vLsenOrCGIcZVVyLTls7W2ttY+sPG3xZ07wd8G9Q8aE+dptnpbaomOsqeXvUfjkD8a+Pv2Pf2TLT9sOHVvil8UGvdWk1u9kWytBO0UZRTgsSpDbAcoqggAIT3r2/wDad8Ez+CP+CeWuaAbr7fNovhyC1e4jUqJxEIwzgZOAQpOMnirv/BOW9gvf2OvB/kYHkxTRSY/viZ91fVYqisbmtHDYyN4xpufK9nJtR1Wzt0PNpTdHDTqUnq5Wv1ta/wCJ5BB+y74m/ZF/a+8Nan8M9N1vUvBXiAiHWLVX8yKzjLbXEjMRkLkOhOWG0jkVqf8ABYOUwfBnwrIudya4GXAyciFyP1r6Z8bfFjw18N77TbbX9b0/SJ9YkMNkl1KIzcuMZVc9TyPzr5p/4K9f8kj8H/8AYwJ/6LaubOcuoYPKcZSw0tHZ8uloN20S6J72+40wtedXE0pVFrtfuT/Cv/gmf4W8Y/DuDV/iBNrOs+M/EFut1f3n25lNtI4BCoBwSowPmyDjpisH/gm4NU+D/wAf/iZ8LLq+ku9O0RvtVqG6Blk2F1HRd6NGSBxkV9iaH/yBbP8A64J/6CK+SP2Zv+Unfxe4x/oh/wDQoKrFZVhsDisFUw0eWTnyt9ZJxd+bu7q+oqeJqVqdaNR3Vr+mq27FT/grxfXOlWvw0vLHA1Cz1aWa0OAdsyrGUPPH3gK6fwp/wS18E6v4EEviubWtT8YarF9o1DVDesHS5cbmKr90gMcfNnOKwv8Agq7/AMf/AMJ/+w8f5xV9hVdDKsLi84xksTBTtyJJ6rWOrt303FUxNSlhaSpu17/mfHv/AASx1rU/C2t/EX4e391JcweFtQ/0ZWYlYfneN9o7BioOBxnPrTv+CjvxJ1vx38RPCHwa8NXc1rN4olSXVHiOC0TPtRGI/gADuw77VqL9gD/k8L45f9f7f+lMtVfijcxaZ/wVz8IyXvEU+nRxwMxwN7QzKv1+bjHqa8qE5/2FSwyk1GdT2bfXl9o1a/oreh0tL67KpbVR5vnyo7TU/wDglF8L7j4ftpdtBqUGriHCasbpmk8zH3mjJ8vbn+EL071j/wDBM34y641x4n+FfimaWbVvBMjLaNKSXECuY2jyeSEbbt/2XA7CvrOvjH9l6eLVv+CofxWubHElrHaTRyOpyu8SW6tz/vqfyNevjcBh8vx2Eq4KKhzScJJac0Wm9e9mtzlo1p16NWNZ3srq/R3/AFLf7Vf/ACk0+DP/AF6L/wCjpq9i/bo+Ps/7O/7POqaxp7iPWb1l0/TnIz5Usmf3mO+xQzfUCvHf2q/+UmnwZ/69F/8AR01Xv+CwcTH4B+H5CrNDFrqGTA/6ZSf/AF/zriq4mph8Nmdak7SU3Z9rxir/ACNY041KmHhLa36sofss/wDBODwn4u+Etj4j+IVtqOt+JPE0X2+bzrySP7KJPmX7pBZ8EEsxPJxjiub8A2d3/wAE+/229P8AB1te3tx8P/HQQQR3LbhC7kqrZ6bkkwpIHKuM819n/Du9g1L4f6HcWzK1tPp8DxFTkFTGpGPwr5I/4KVXEd9+0d8GbG2+fUl1BZNqnLBDcQhePqp/I1WaZThcuwNLF4SKjUpuHvLeV2k0315rhhsTUr1pUqrvGSenbtbtY9V/4KM/He++B37PM50e4a21vxBcLptpJGf3sYYEyOn+0FBAPYsK4j4K/wDBLfwJP8IbFvGNnfah4m1W2W4vLkXbxm0kcbiqAHBK5wSwbJBNZn/BXiN4dA+G15ImbK11xzOx+6uVQjP4K1fYNncx3lpFNCwaKVA6EdCpGQfyrujg6OPzjERxcVNUowUU9V7ybbs+vS/kYOrOhhYOk7OTbbXlokfnz+y94C1f4Wf8FJbTwvrV7canJ4csLmysbmfl3s/KLQ8+m1unbkV67/wV+jWT9mrTQyhh/bkHUZ/gkrNvr6C8/wCCv1osJUtb6AY5cf3/ACGbn8Ctan/BXv8A5Nr03/sOQf8AoEleIsPGhkeYUYO6jOaXouX8tjsdRzxlCb3aX6n0DpPia28E/BS01e8O200vRY7qUj+6kAY4/Kvjr9lT9niH9vTxP4h+KHxIlvdQsLi+e103T0naONUXnblTkIgKqApGTkk19I/He1mvf2Idejtwxmbwr8oXrxACf0zXyX+x7+yl48+MXwQs9a8L/Fe+8LabJcTRNpsEcxWCRWwxysigluG6d67c8nOrjsNhnRdaCg5cl0rvRJu7Sdu3mY4JKNGpU5uVt2vrp16dzpP2nvgTD/wT78c+Gfib8PGvbPRzfLZatpzztJGUbJ25JyUZQwwc4YKQea+r/jf8S7jQf2avEXivQSXuE0OS/sXAzt3Rbkf8AQ34V8x+PP8Agm58QPFegGy8R/Gxr7T5HBEWoW8rxGTnacNNjd1xX1n4H8E2/hD4OaT4c1S4ttQtdP0mLTrqaQbIrlFiEbEgk4VgDwT0NdGS4XFQq4mnGi6FOaTirxfLKzTaUW7dH8iMXUpuNNuXPJPXR6rzufIf7Cv7Hfw0/aA+Di+J/E8tx4p8T6jNK2orJqEivZvvIG5UYNuIw25s53cV6H+y/wDsoeLf2Xv2ndfi0aRpvhZqltuT7ReK0qTYDIBH1LKdyl8DKkda4L4hf8EvNR0LWG8RfB/xi2nrJmSG1kunjKjPCx3EfVR2Dg49a0/2Wf2ofiT8N/j9Z/Cr4sRvc3OpIRY3spVp1fDMmZF+WVH2sAeoIryMvo0cHVw9LHYZ0pxkkqsbOM29Pee9pdn+B1V5zqxnKjU5k1rF7peS8j7Looor9MPngooqrrOt2XhzS577ULu1sLK2QyTXFxKsUUSjqzMxAA9yaaTbshNpK7LVUPFHirTPBGgXWq6zqNlpOmWMZluLu8nWGCBB1ZnYgAfU18Bftqf8HDXw0+Bb3Wi/DW1/4WX4kizGbqOQw6Pat7zY3TYPaMY/2xX5Lftef8FAPip+2/rxufHniSe40yN99rotnm30y09NsIOGb/acs3vX3uReHuY461TEL2VPu/ifpH/O3zPg8+8QsuwF6dB+1qdlsvWX+Vz9QP25f+DjDwl8OIr3QPgvYxeNNcXMR128Vk0m2bkbo14ecjtjanuRX5H/AB+/aR8dftSeOpfEfj7xLqXiTVZCfLa5fENqpOdkMQwkaD0UD8a4jpRX7TkfDGX5VH/Zoe91k9ZP59PRWR+J57xVmGay/wBpnaPSK0iv8/V3Cip9K0u617VILGwtbm+vrpgkNtbRNLNMx6BUUEk/QV9x/si/8EAvjN+0M9rqPi5IPhh4blw5k1OPztSmTj/V2ykbTjvIy/Q9K9DMc2weAp+0xdRQXnu/Rbv5I87LcnxuPn7PCU3J+Wy9XsvmfCyKZJURQzvIQqqoyzE9AB3NfZ37Fn/BDb4x/tYC11bWbI/DjwjNh/t+swst5coe8Nrw5yOjPtX0zX65fsa/8Ekfgz+xbBbXmi+H08QeKYlG/X9aC3V5u7mMEbIR/uKD7mvpuvyjPPFGUr0srhb+9Lf5R/zv6H61kXhbCNquaTu/5Y7fN/5W9T5e/Yu/4JD/AAb/AGKRb6hpOh/8JJ4siALa/rYW4ukb1hXGyEf7gz6sa+oaKK/Ksbj8Ri6rrYmbnJ9W7/16H6tg8Dh8JSVHDQUYrolYKKKK5DqCiiigAooooAKKKKACiiigAooooAKKKKAPj3wv4M1iH/grVqmrnR9VTSH02RRfNaSC2Zvs0YwJMbc5469q+utW0uDXNLubK6jWa1vImgmjbo6MCrA/UE1YorzMtyyOEjVinze0nKe383Q6K+IdVxdrWSX3HwN4R8ReOv8AgmP8Rdb0e58N6h4p+HmsXRuLKe2Vjs7KQwBCSbcKyNjO0EGnePfEvjz/AIKbeN9E0XTvDeqeFPh9pdyLi8u7pWUs3QvvwAzhSQiLnBYkmvvcjIoAwMDgCvE/1WlyfVPrEvq978llte/Lzb8t+nbqdn9pK/teRe07/rbuY2o+AtM1TwBN4Zmg36RNYHTmiJyTCY/Lxn1296+Ifhj8TfGn/BNHxDrfg/XvCuq+JvB95dtd6Xe2gbHPBZWwV5AXchwQwJ6GvvegjIweRXq5llDxE6dehP2dSF0pJJ6PdNPdfkc2HxXIpQnHmi91+tz4i8BaD4v/AOCgn7SWg+NfEGgXfhr4f+DnE1jbXSkNdyKwcKMgbyzhSzAbQqgDk12v/BVrwpqvi34V+E4dJ0vUtVmi15HdLO2edkXy2+YhQcD3NfVFFcj4cjLB1sNUqOU6usptK7eltNkklZLoa/X2qsKkY2UdkVtGQx6RaKwKssKAg9Qdor5V/Zw8J6tpn/BSH4r6lcaTqdrpt3asILua1dIJzvh+45G1uh6HtX1nRXpY3LliJ0ZuVvZy5vXRq34nPSruCmrfErfjc+Tf+CoPhHV/FN98LzpelanqYtdcLzm0tXn8lcx/M20HaODyfSvrKiiqw2Xqjiq2KUr+05dO3KrfiFSu504U7fDf8T5K/YV8I6toX7WPxpvL7StTsbO9vmNtPcWrxRXA+0SHKMwAYY54zW5/wUJ/Zl134jpoHjzwTG0vi/wdKJFgjx5l3Crbxs9XRhkL/EGYdcV9M0VwR4fo/wBnvL6km023fZpuTkmvRmrx0/bqvFa6L8LfifFN7/wVH8U6r4W/sfT/AIY66njmZDbgeVI8Ec3TeI9m8887T+Jr0r/gnj+y1qfwI8F6pr3ihCPF3i2UT3aMwZ7WIEsqMRxvLMzNjoSB2r6L2jdnAz0zS1OEySrHExxWNrurKCajoopX3dlu33HVxkXTdOjDlT31vf8A4B8mftO+EdX1T/go18IdStdK1O502ztVFxdxWrvBAfOlOHcDavBHU9690/ae+Bdr+0Z8FtX8LzyLBPdIJrKc9Le4Q7o3Ptng+xNd/RXVRyelH6xGo+aNZ3a9Ulb8DOeKk+Rx0cFp99z4S+EP7avjH9j7wengDx58P9cv7vw+pgsLm2yFmiBO0bipV1GcB1PTAIyK2v2ZPhb4v/aq/adX4yeOdIl0LR9LAGjWMyMhkZQRHtVgGKJuZixA3ORgYFfaZGaK8yjw3UUqcMRiHUpU2nGLSWq+Hma1lb5HRPMI2k6cFGUt3f77Lpc82/ax/Z9t/wBpf4K6l4akkjt71iLmwuHGVguEztJ/2TkqfZjXzJ8Nv2p/jh8B/C8HgTVfhVq/iHVdJQWOn3qQzMkir8qbnRSkigYwwZeAM46177+3bB47h+BM2pfD3UNQstc0W6S8kSyAaW5gAYSJtIO7G4NtxztrznwT/wAFZvh6fh7ZzeIBrNr4hgt1S8s47MvvmUYba2QuCRnnGM89K485q4aGYc0q7w9TlXvacs43210vF/PXqa4SNR0LKCqRvtrdP5dGeTfsveEvFHhn/gpNbjxjcQXXii/0641PUhCcrbvNDuEfp8oKjA4HSvaf+CrfhbVPFv7O+nW+k6ZqGq3CazC7RWdu88gXZJ8xVQTjkc1zP7DWh678ev2l/Fvxq1fS5tJ0q/hNjo8cykNIvyrlT3CogBboWY46V9h1GR5VHE5TXoJtQqym4t7uLslJ372uPGYl08TCdleKV10v2MDwxokWq/C/TtOvoC0NzpcVtcQyDBKtEFZSPoSK+JvCfiPxz/wTH+Imt6PceGtQ8UfDvWLo3FlPbBj5foVYAhZAuFZGxnaCDX3xQRkYPINe/mOT/WPZ1KVR06lP4ZJJ6PRpp6NM4sPivZ80ZR5oy3R8D/ELxL47/wCCm3jbQ9D03wzqnhXwBpVyLm8vLsMu5uhcvgBnClgiLnBYkmvsL4u/Bm1+JHwF1fwRDI1pBeaZ9gtpMn9yVUCMk9SAVXPqM12wGBRU4HJI0lVliZupOrpJtW0tZJJbIdbGOTiqa5VHZfqfA3wO/bB8Z/sUeHB8PfHXgLWb9NGd0sJ7YFSYyxO1W2lZI8klWBzg4PSun+BPhjxn+2F+1tpvxX8ReHrjwt4Y8MQ+XpkE4ZZLlgG2AbgC3LszNgLwAK+0WQMRkA45GR0rx79pj9vv4RfsiabLN468baRpl3GpZNNik+06hMR2WCPL5PqQB71z4DhLF1qlLDe2lVpwacYKKvp8N2tWl6IMXnFCjCdeaUG1rJvTXffRXPYqwPiX8VvDPwa8KXGueLNe0nw5o9qCZbvUbpLeJfbLEZPsOTX5HftXf8HLfiDxH9p0z4PeEotAtSSia1rwWe7Yc/Mlup2J/wADZ/pX5yfG79oXxx+0l4qbWvHnirWvFOok5R764Lxwe0cf3Ix7KBX7hk3hlj8RaeOkqUe28vu2XzfyPyjOfE3L8NeGCTqy77R+/d/JfM/Xn9r3/g5F8D/D77VpXwi0ObxzqiZQatfh7TS4z0yq8Syj8EB9a/Lb9qb9vf4s/tl6xJcePfF+oahYly0Ok2zfZdMtvZYE+U/7z7m9TXj1SWNnNql/Fa2sE11dTsFighjMkkhPQKoySfpX6xk3CmWZWubD07yX2pay+/p8kj8lzni3NM0fJWnaL+zHRf5v53IwMDA4Ao6V9b/sy/8ABEn4/ftK/Zrv/hGU8EaJPg/2h4kY2pKn+JYADK3/AHyB71+jP7LH/Buh8JPhELfUPiDf6j8S9ZjIcwzZstLQ+ghQlnGf77ke1c+bcbZTgLxnU55fyx1f37L5s6Mp4GzbHtSjT5IvrLT8N38kfi98F/2f/HH7RfidNG8CeFNc8Vag5AKafatIkPvJJ9yNfdmAr9F/2Uv+DabxN4oFtqXxf8VweG7VsO2jaGVubwj+687Dy0/4CH+tfr34B+G3h74VeHIdI8M6JpWgaXbqFjtdPtUt4lAGPuoAM+/Wtuvy/N/E3H4i8MFFUo995ffsvu+Z+o5P4Y5fh7TxsnVl22j9y1f3/I8b/Za/YA+En7G2lLD4D8Habp18UCzapOv2nUbn3ed8vz6KQvtXslFFfnWIxNbEVHVrycpPq3d/ifo2Hw1KhTVKhFRiuiVkFFFFYGwUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAVyeo/AfwTq+vHVLrwl4buNRY7muJNOiaRj6kleT7musorOpRp1FapFP1VyozlH4XYbBAltCscaLHGgCqqjAUegFOoqrrWu2PhrTJb3Uby10+zgG6Se5lWKKMepZiAB9a1SvoiG0tWWqK+O/2mf+C53wA/Zz8+0tvEcvjvW4cj7D4bjF0oYdnnJEK/gxPtX5//ALRv/ByP8V/iMLiz+H+gaJ8P7B8qlzN/xMtQ2+u5gIlP0Q/Wvq8r4JzfHWlClyxfWXur7t38kfK5pxrlGAvGpV5pdo+8/wANF82ftT8QPiV4d+FHhubWPE+uaT4e0q3GZLvUbtLaFf8AgTkDPtXwr+0//wAHFXwc+EK3Nj4FttT+JWsR5VZLVTaaarepnkGWGf7iH61+Knxh+PPjX9oPxCdV8c+Ktd8VX+SVk1K7aZYv9xCdqD2UCsPwn4R1fx7q6afoOlanrd9IQq29havcykk4+6gJr9HyvwvwdBe0zGo5tdF7sfm93+B+b5p4o4yu/Z5bS5L9X70vu2X4n1Z+1H/wW9+Pn7TD3FpD4jXwHoE2VGneHAbd2Q9pLgkytx6Mo9q+R769n1S+lurqea6up2LSzTSGSSQ+rMckn619a/Ar/gh3+0Z8cZYJH8HR+DtOmwTd+IrkWm1T38ld0p+m2vt39nv/AINk/CHh9YLv4neO9X8S3A5k0/RYhp9pn0MjbpWHuNn4V78+IeHcmp+yoyivKCu36tdfVngQ4d4jzqfta8ZPzm7L5J9PRH40pmSZY1BeRzhUUZZj6ADk19F/s2f8En/j1+1MILjw/wCA9R0zR5uRquuj+zbQr/eXzBvkH+4pr97fgF/wT5+DH7MkUR8G/Dzw5pl3EBi+kthc3hI7+dLucH6EV7JXx2Z+K0neOAo285v/ANtX+Z9jlnhRBNSx9a/lHT8X/kflT+zr/wAGyOhaYILz4p+Pb/WJRhn03w/F9lg/3TPIC7D6Ktfff7OP7CPwj/ZNsUi8B+BdC0W4UANfeT599KR3aeTdIf8AvrHtXrdFfneZ8TZnmF1iqza7LRfcrL7z9EyzhrLMv1wtFJ99397uwooorwj3QooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKCQoJJAA6mvIvjd+3r8G/2dIJG8Y/EbwtpM0YJNr9tWe6PsIY9z5/4DW1DDVa8uSjFyfZJt/gY18RSox560lFd20l+J67RX5o/Hr/AIOZfhh4Mae28BeEvEfjK4UER3d6y6XZFvUbt0rDp/AOtfK3jn/gtd+1b+1peyab8OtEl0G3ufkSLwvokt7dD/tu4fBx3AWvrsFwDm9ePPVgqUe83b8NX+B8njOPMpoy5Kc3Vl2gm/x0X4n7f+N/iFoPw00OTU/Eet6ToOnQgs91qF3HbQqB1+ZyBXx/+0B/wX2/Z8+CyTwaTrl/4+1OLIW30G2Lwlh2M8m2PHupavzNsv8AglB+19+2FrY1bxZo2vSTSnd9t8Y62EKA85EbMzgc9FQV798IP+DYHxHftFL48+KGk6ZERl7XQdPe5k+nmzFAD2+4a9ulwzw5gvezLGqb/lh+WnM/yPFq8S8RY33ctwTgn9qf562X5nFftFf8HJnxW+IIns/h74d0HwDYvlUu7gf2nqAHqCwESn/gDV8RfF79p74l/tM6zu8Y+NPFPi+5nb5be4u5JY8nskC/IB7Ktft98Hv+DfL9nb4ZeTLquka741u4x8z6zqTeUx/65RbF/PNfUvws/Zf+HPwQto4vCPgbwt4dEX3XsdNiikH/AAMLuP4mvQp8acP5arZXhLtdXZP/AMCfNI82rwXxBmTvmmLsn0V3+C5Yn87HwO/4JffHz9oNYJPDfww8RpYz4KXupxDTLUg9w85XcP8AdBr6/wDgt/wbJePvEPkT+PfH/h7w3CxBltdJt3v7hR3G9tiZ/Ov2jorxsf4m5rWusOo015K7+96fgezgPDLKaGtfmqPzdl9y/wAz4Z+Bn/Bvb+z58KHhuNd07W/H99FgltavStsTxz5MOxSPZtwr7A+GfwW8IfBjRY9O8JeGNB8NWUShVh02xjtlx77AM/U101FfF4/OcdjXfFVZT9W7fdsfaYHKMFg1bC0ow9Er/fuFFFFeaeiFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRTLmD7TCyb3j3fxIcMPxoAc7iNCzEKo5JJwBXl3xP/AG2fhL8G3aPxF8QPDNndKM/ZIrtbm6P0hi3SH/vmum1v4IeGvFJP9r2D6wCclL24knjPoCjNtI/Cr3hX4W+GPAv/ACBPDuhaPznNlYRW5z6/IorrpfVlrU5n5Ky/F835HLV+svSnyrzd3+C5fzPnbXv+Co1rrkJX4b/B/wCM3xKncHyZrTw5Lpuny+h+03flqB7gGuE8R/E/9un42R+X4Y+HPwx+ENjMfludd1f+1r+NT32R5QHHYqfrX3FRXfTzTDUf4OGi33m3J/deMf8AyU4amW4ir/GxEl5QSivvtKX/AJMfm/r/APwSD/aH/aIfPxa/al1ua1lz5thoNq8NuB6BQ0Sfmlbfw1/4Nu/gR4VkSfxFqHjXxhd7g0hutRFrFKe+ViUNg/79foLRXXLi/NeXkpVfZx7QUYf+kpHJHhPK+bnq0+eXeblL/wBKbPB/hV/wTC/Z/wDgwY20D4T+D454+k95Zi/m/wC+5y7frXtujaBYeHLNbfT7K0sLdAAsVvCsSADpgKAKt0V4eIxmIxD5q83J+bb/ADPbw+EoUFy0IKK8kl+QUUUVzHQFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAf/9k=" alt="YASH Technologies"></div>
+    <div class="head-title">
+      <span class="k">Manufacturing Intelligence</span>
+      <span class="t">Shopfloor OEE Agent</span>
+    </div>
+    <div class="head-right">
+      <div class="shift"><span class="live-dot"></span><span id="clock">--:--:--</span> · SHIFT <span id="shiftId">A</span></div>
+      <div class="selwrap">
+        <select id="line" onchange="selectLine(this.value)"></select>
+      </div>
+       <a class="dashboard-btn" href="http://localhost:9000/">
+          Dashboard
+       </a> 
+
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- MAIN -->
+  <div class="col-main">
+
+    <!-- HERO -->
+    <section class="card">
+      <div class="hero">
+        <div class="gauge" id="gauge"></div>
+        <div class="hero-meta">
+          <span class="verdict" id="verdict"></span>
+          <div class="hero-eq" id="eq"></div>
+          <p class="hero-note" id="note"></p>
+          <div class="trend">
+            <div>
+              <div class="tl">7-Day OEE Trend</div>
+              <div class="spark" id="spark"></div>
+            </div>
+            <div>
+              <div class="tl">Shift Context</div>
+              <div class="mono" id="ctx" style="color:var(--ink-2);font-size:12px;margin-top:6px"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- A / P / Q -->
+    <div class="apq" id="apq"></div>
+
+    <!-- ROOT-CAUSE DRILLDOWN -->
+    <section class="card">
+      <div class="card-h"><span class="eyebrow">Drill down</span><h2>Root-Cause Ledger</h2><span class="sub" id="ddSub"></span></div>
+      <div class="card-b"><div class="dd" id="drilldown"></div></div>
+    </section>
+
+    <!-- WATERFALL -->
+    <section class="card">
+      <div class="card-h">
+        <span class="eyebrow">Where it goes</span>
+        <h2>OEE Loss Waterfall</h2>
+        <span class="sub" id="wfSub"></span>
+      </div>
+      <div class="card-b">
+        <div id="waterfall"></div>
+        <div class="wf-legend">
+          <span><i class="dot" style="background:var(--ink)"></i>Effective output</span>
+          <span><i class="dot" style="background:#f3b4ab"></i>Availability loss</span>
+          <span><i class="dot" style="background:#a9c6ee"></i>Performance loss</span>
+          <span><i class="dot" style="background:#e7d597"></i>Quality loss</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SIMULATOR -->
+    <section class="card sim">
+      <div class="card-h"><span class="eyebrow">What-if</span><h2>OEE Improvement Simulator</h2><span class="sub" id="simSub"></span></div>
+      <div class="card-b">
+        <div class="sim-grid">
+          <div class="sim-controls" id="simControls"></div>
+          <div class="sim-out" id="simOut"></div>
+        </div>
+        <div class="sim-presets" id="simPresets"></div>
+      </div>
+    </section>
+
+    <!-- PARETO + QUALITY -->
+    <div class="two">
+      <section class="card">
+        <div class="card-h"><span class="eyebrow">Biggest first</span><h2>Downtime Pareto</h2><span class="sub" id="dtSub"></span></div>
+        <div class="card-b"><div class="pareto" id="pareto"></div></div>
+      </section>
+      <section class="card">
+        <div class="card-h"><span class="eyebrow">Reject drivers</span><h2>Quality Losses</h2><span class="sub" id="qSub"></span></div>
+        <div class="card-b"><div class="pareto" id="quality"></div></div>
+      </section>
+    </div>
+
+    <!-- EVENT LOG -->
+    <section class="card">
+      <div class="card-h"><span class="eyebrow">This shift</span><h2>Stoppage Log</h2><span class="sub" id="logSub"></span></div>
+      <div class="card-b" style="overflow-x:auto">
+        <table class="log" id="log"></table>
+      </div>
+    </section>
+
+    <!-- e-ANDON -->
+    <section class="card" id="andonCard">
+      <div class="card-h">
+        <span class="eyebrow">Fault response</span>
+        <h2>e-ANDON · Auto Ticketing &amp; Maintenance Orders</h2>
+        <span class="sub" id="andonSub"></span>
+        <button class="andon-raise" onclick="simulateFault()">⚠ Raise ANDON (simulate fault)</button>
+      </div>
+      <div class="card-b">
+        <div class="andon-filter" id="andonFilter"></div>
+        <div id="andonList"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- COPILOT -->
+  <aside class="card copilot">
+    <div class="cop-h">
+      <div class="ico">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v3"/><rect x="4" y="7" width="16" height="12" rx="3"/><path d="M9 12h.01M15 12h.01M9 16h6"/></svg>
+      </div>
+      <div>
+        <div class="t">Shopfloor Copilot</div>
+        <div class="s">Ask why OEE is low</div>
+      </div>
+      <span class="badge">Live · On-device</span>
+    </div>
+    <div class="stream" id="stream"></div>
+    <div class="chips" id="chips"></div>
+    <div class="composer">
+      <input id="q" placeholder="Ask about this line…" onkeydown="if(event.key==='Enter')send()">
+      <button class="send" id="sendBtn" onclick="send()" aria-label="Send">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4Z"/></svg>
+      </button>
+    </div>
+  </aside>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<footer>
+  <span>YASH Technologies — Shopfloor OEE Copilot (demo)</span><span class="foot-dot"></span>
+  <span>OEE = Availability × Performance × Quality</span><span class="foot-dot"></span>
+  <span>World-class benchmark 85%</span><span class="foot-dot"></span>
+  <span>Copilot analyses the selected line's shift data on-device — no connection required.</span>
+</footer>
+
+<script>
+/* ============================================================
+   SAMPLE SHOPFLOOR DATA  (raw inputs — metrics are computed)
+   ============================================================ */
+const LINES = {
+  L3:{
+    name:"Line 3 — Blister Packaging", product:"BLP-220 Blister Pack", operator:"R. Sharma", shift:"A",
+    plannedMin:450,                 // planned production time (min), after planned breaks
+    idealCycleSec:3.0,              // ideal cycle time per unit
+    totalCount:4650,                // total units produced
+    goodCount:4320,                 // good units
+    downtime:[                      // unplanned stoppages
+      {reason:"Changeover overrun", min:45, cat:"A"},
+      {reason:"Conveyor breakdown", min:35, cat:"A"},
+      {reason:"Material shortage (starved)", min:28, cat:"A"},
+      {reason:"Minor stops / jams", min:22, cat:"P"},
+      {reason:"No operator", min:10, cat:"A"}
+    ],
+    defects:[
+      {reason:"Short fill / incomplete", n:140},
+      {reason:"Seal defect", n:95},
+      {reason:"Label misalignment", n:60},
+      {reason:"Contamination", n:35}
+    ],
+    trend:[62,60,58,61,55,51,48]
+  },
+  L1:{
+    name:"Line 1 — Injection Molding", product:"IM-540 Housing", operator:"A. Kulkarni", shift:"A",
+    plannedMin:450, idealCycleSec:5.0, totalCount:4300, goodCount:4214,
+    downtime:[
+      {reason:"Setup / changeover", min:20, cat:"A"},
+      {reason:"Mold temperature alarm", min:12, cat:"A"},
+      {reason:"Minor stops", min:8, cat:"P"}
+    ],
+    defects:[
+      {reason:"Flash", n:40},{reason:"Short shot", n:30},{reason:"Sink marks", n:16}
+    ],
+    trend:[75,77,76,79,78,80,78]
+  },
+  L5:{
+    name:"Line 5 — Final Assembly", product:"ASM-118 Module", operator:"S. Nair", shift:"A",
+    plannedMin:450, idealCycleSec:6.0, totalCount:3100, goodCount:2940,
+    downtime:[
+      {reason:"Waiting for parts", min:40, cat:"A"},
+      {reason:"Robot fault", min:20, cat:"A"},
+      {reason:"Minor stops", min:15, cat:"P"},
+      {reason:"Quality hold", min:10, cat:"A"}
+    ],
+    defects:[
+      {reason:"Misassembly", n:70},{reason:"Missing component", n:50},{reason:"Surface scratch", n:40}
+    ],
+    trend:[68,66,64,65,63,64,65]
+  }
+};
+
+/* ---------- OEE computation from raw inputs ---------- */
+function compute(l){
+  const downtime = l.downtime.reduce((s,d)=>s+d.min,0);
+  const runMin = l.plannedMin - downtime;
+  const availability = runMin / l.plannedMin;
+  const theoMax = Math.round(runMin*60 / l.idealCycleSec);
+  const performance = l.totalCount / theoMax;
+  const rejects = l.totalCount - l.goodCount;
+  const quality = l.goodCount / l.totalCount;
+  const oee = availability*performance*quality;
+  return {downtime,runMin,availability,theoMax,performance,rejects,quality,oee,goodCount:l.goodCount,totalCount:l.totalCount};
+}
+const pct = x => (x*100);
+const f1 = x => pct(x).toFixed(1);
+function statusOf(oee){
+  const v = pct(oee);
+  if(v>=75) return {k:"Healthy",c:"var(--good)",bg:"#e4f5ec",msg:"On track"};
+  if(v>=60) return {k:"Watch",c:"var(--warn)",bg:"#fbf1e0",msg:"Below target"};
+  return {k:"Critical",c:"var(--crit)",bg:"#fde9e6",msg:"Needs attention now"};
+}
+const CATNAME={A:"Availability",P:"Performance",Q:"Quality"};
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+let CURRENT="L3";
+
+function polar(cx,cy,r,a){const rad=(a-90)*Math.PI/180;return {x:cx+r*Math.cos(rad),y:cy+r*Math.sin(rad)};}
+function arc(cx,cy,r,a0,a1){const s=polar(cx,cy,r,a0),e=polar(cx,cy,r,a1);const large=(a1-a0)>180?1:0;return `M ${s.x.toFixed(2)} ${s.y.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${e.x.toFixed(2)} ${e.y.toFixed(2)}`;}
+
+function renderGauge(m){
+  const c=pct(m.oee), st=statusOf(m.oee);
+  const start=225, sweep=270, end=start+sweep*(c/100);
+  const g=document.getElementById('gauge');
+  g.innerHTML=`
+    <svg viewBox="0 0 230 230" width="230" height="230">
+      <path d="${arc(115,115,96,225,495)}" fill="none" stroke="var(--line)" stroke-width="18" stroke-linecap="round"/>
+      <path d="${arc(115,115,96,start,end)}" fill="none" stroke="${st.c}" stroke-width="18" stroke-linecap="round"/>
+      <path d="${arc(115,115,96,225+270*0.85,225+270*0.85)}" />
+      <line x1="${polar(115,115,84,225+270*0.85).x}" y1="${polar(115,115,84,225+270*0.85).y}" x2="${polar(115,115,108,225+270*0.85).x}" y2="${polar(115,115,108,225+270*0.85).y}" stroke="var(--ink)" stroke-width="2.5" opacity=".65"/>
+      <text x="${polar(115,115,118,225+270*0.85).x}" y="${polar(115,115,118,225+270*0.85).y}" font-family="IBM Plex Mono" font-size="10" fill="var(--mute)" text-anchor="middle" dominant-baseline="middle">85</text>
+    </svg>
+    <div class="center">
+      <div class="val" style="color:${st.c}">${c.toFixed(1)}<span class="pct">%</span></div>
+      <div class="lab">OEE</div>
+    </div>`;
+}
+
+function renderHero(l,m){
+  const st=statusOf(m.oee);
+  document.getElementById('verdict').innerHTML=
+    `<span class="live-dot" style="background:${st.c};animation:none"></span>${st.k} — ${st.msg}`;
+  document.getElementById('verdict').style.cssText=`background:${st.bg};color:${st.c}`;
+  document.getElementById('eq').innerHTML=
+    `OEE = <b>${f1(m.availability)}%</b> A × <b>${f1(m.performance)}%</b> P × <b>${f1(m.quality)}%</b> Q = <b style="color:${st.c}">${f1(m.oee)}%</b>`;
+
+  // biggest lever
+  const losses=[["Availability",1-m.availability],["Performance",1-m.performance],["Quality",1-m.quality]]
+    .sort((a,b)=>b[1]-a[1]);
+  const worst=losses[0];
+  const topStop=[...l.downtime].sort((a,b)=>b.min-a.min)[0];
+  document.getElementById('note').innerHTML=
+    `<b>${worst[0]}</b> is the biggest drag, costing <b>${(worst[1]*100).toFixed(1)} points</b>. `+
+    (worst[0]==="Availability"
+      ? `The largest single stop is <b>${topStop.reason}</b> at <b>${topStop.min} min</b>. Recover run-time here first.`
+      : worst[0]==="Performance"
+      ? `The line is running slower than its ideal rate — expected <b>${m.theoMax.toLocaleString()}</b> units, made <b>${l.totalCount.toLocaleString()}</b>.`
+      : `<b>${m.rejects}</b> units were rejected out of <b>${l.totalCount.toLocaleString()}</b>. Address the top defect first.`);
+
+  // spark
+  const mx=Math.max(...l.trend);
+  document.getElementById('spark').innerHTML=l.trend.map((v,i)=>{
+    const last=i===l.trend.length-1;
+    return `<span title="Day ${i+1}: ${v}%" style="height:${8+(v/mx)*38}px;background:${last?statusOf(v/100).c:'var(--y-blue)'};opacity:${last?1:.55}"></span>`;
+  }).join('');
+
+  document.getElementById('ctx').innerHTML=
+    `${l.product}<br>Operator ${l.operator} · Shift ${l.shift}<br>Planned ${l.plannedMin} min · Ran ${m.runMin} min`;
+  document.getElementById('shiftId').textContent=l.shift;
+}
+
+function compCard(name,cat,value,target,facts){
+  const st = value>=target ? "var(--good)" : value>=target-0.12 ? "var(--warn)":"var(--crit)";
+  const w=Math.min(100,pct(value));
+  return `<section class="card comp">
+    <div class="top"><span class="name">${name}</span></div>
+    <div class="big" style="color:${st}">${f1(value)}<small>%</small></div>
+    <div class="bar">
+      <i style="width:${w}%;background:${st}"></i>
+      <div class="tick" data-t="tgt ${Math.round(pct(target))}" style="left:${pct(target)}%"></div>
+    </div>
+    <div class="facts">${facts.map(f=>`<div><span>${f[0]}</span><b>${f[1]}</b></div>`).join('')}</div>
+  </section>`;
+}
+function renderAPQ(l,m){
+  document.getElementById('apq').innerHTML=
+    compCard("Availability","A",m.availability,0.90,[
+      ["Planned time",`${l.plannedMin} min`],["Downtime",`${m.downtime} min`],["Run time",`${m.runMin} min`]
+    ])+
+    compCard("Performance","P",m.performance,0.95,[
+      ["Ideal cycle",`${l.idealCycleSec}s / unit`],["Theoretical max",`${m.theoMax.toLocaleString()} u`],["Produced",`${l.totalCount.toLocaleString()} u`]
+    ])+
+    compCard("Quality","Q",m.quality,0.99,[
+      ["Total units",`${l.totalCount.toLocaleString()} u`],["Good units",`${l.goodCount.toLocaleString()} u`],["Rejects",`${m.rejects} u`]
+    ]);
+}
+
+function renderWaterfall(l,m){
+  const st=statusOf(m.oee).c;
+  // levels (as % of theoretical 100)
+  const a=pct(m.availability), afterA=a;               // 100 -> A
+  const afterP=afterA*m.performance;                    // A -> A*P
+  const afterQ=afterP*m.quality;                        // A*P -> OEE
+  const rows=[
+    {lab:"Theoretical 100%", from:0, to:100, col:"#c8d3de", val:"100.0%"},
+    {lab:"− Availability loss", from:afterA, to:100, col:"#f3b4ab", val:"−"+(100-a).toFixed(1)+" pts"},
+    {lab:"− Performance loss", from:afterP, to:afterA, col:"#a9c6ee", val:"−"+(afterA-afterP).toFixed(1)+" pts"},
+    {lab:"− Quality loss", from:afterQ, to:afterP, col:"#e7d597", val:"−"+(afterP-afterQ).toFixed(1)+" pts"},
+    {lab:"= OEE", from:0, to:afterQ, col:st, val:afterQ.toFixed(1)+"%", strong:true}
+  ];
+  const H=34, gap=10, W=100;
+  const el=document.getElementById('waterfall');
+  el.innerHTML=`<div style="display:flex;flex-direction:column;gap:${gap}px">`+rows.map(r=>{
+    const left=r.from, width=r.to-r.from;
+    return `<div style="display:grid;grid-template-columns:150px 1fr 92px;align-items:center;gap:12px">
+      <div style="font:${r.strong?'700':'500'} 12.5px Inter;color:${r.strong?'var(--ink)':'var(--ink-2)'}">${r.lab}</div>
+      <div style="position:relative;height:${H}px;background:var(--line-2);border-radius:6px">
+        <div style="position:absolute;left:${left}%;width:${width}%;top:0;bottom:0;background:${r.col};border-radius:5px;${r.strong?'box-shadow:0 1px 6px rgba(0,0,0,.12)':''}"></div>
+      </div>
+      <div class="mono" style="text-align:right;font-weight:${r.strong?600:500};color:${r.strong?st:'var(--ink-2)'}">${r.val}</div>
+    </div>`;
+  }).join('')+`</div>`;
+  document.getElementById('wfSub').textContent=`${f1(m.oee)}% of theoretical output`;
+}
+
+function renderPareto(l,m){
+  const total=m.downtime;
+  const sorted=[...l.downtime].sort((a,b)=>b.min-a.min);
+  const mx=sorted[0].min;
+  const col={A:"var(--y-red)",P:"var(--y-blue)",Q:"var(--y-gold)"};
+  document.getElementById('pareto').innerHTML=sorted.map(d=>{
+    return `<div class="prow">
+      <div class="lb"><span>${d.reason}<span class="tag ${d.cat.toLowerCase()}">${CATNAME[d.cat]}</span></span>
+      <span class="r">${d.min} min · ${(d.min/total*100).toFixed(0)}%</span></div>
+      <div class="ptrack"><i style="width:${d.min/mx*100}%;background:${col[d.cat]}"></i></div>
+    </div>`;
+  }).join('');
+  document.getElementById('dtSub').textContent=`${total} min lost`;
+}
+
+function renderQuality(l,m){
+  const tot=m.rejects;
+  const sorted=[...l.defects].sort((a,b)=>b.n-a.n);
+  const mx=sorted[0].n;
+  document.getElementById('quality').innerHTML=sorted.map(d=>
+    `<div class="prow">
+      <div class="lb"><span>${d.reason}</span><span class="r">${d.n} u · ${(d.n/tot*100).toFixed(0)}%</span></div>
+      <div class="ptrack"><i style="width:${d.n/mx*100}%;background:var(--y-gold)"></i></div>
+    </div>`).join('');
+  document.getElementById('qSub').textContent=`${tot} rejects`;
+}
+
+function renderLog(l,m){
+  const col={A:["#fdeae7","#b32516"],P:["#eaf1fb","#0f4e8f"],Q:["#fbf4e2","#8a771f"]};
+  // fabricate plausible timestamps across an 8h shift starting 06:00
+  let t=6*60+18, rows="";
+  [...l.downtime].sort((a,b)=>b.min-a.min).forEach(d=>{
+    const hh=String(Math.floor(t/60)).padStart(2,'0'), mm=String(t%60).padStart(2,'0');
+    const c=col[d.cat];
+    rows+=`<tr>
+      <td>${hh}:${mm}</td>
+      <td class="r">${d.reason}</td>
+      <td><span class="chip" style="background:${c[0]};color:${c[1]}">${CATNAME[d.cat]}</span></td>
+      <td style="text-align:right">${d.min} min</td>
+    </tr>`;
+    t+=d.min+Math.floor(Math.random()*30+20);
+  });
+  document.getElementById('log').innerHTML=
+    `<thead><tr><th>Start</th><th>Stoppage</th><th>Loss type</th><th style="text-align:right">Duration</th></tr></thead><tbody>${rows}</tbody>`;
+  document.getElementById('logSub').textContent=`${l.downtime.length} stoppages`;
+}
+
+/* ---------- Root-cause drilldown ---------- */
+function renderDrilldown(l,m){
+  const rows=[
+    {k:'Availability',val:pct(m.availability),tgt:90,
+      why:`Planned <b>${l.plannedMin} min</b>, lost <b>${m.downtime} min</b> to stops. Largest: <b>${[...l.downtime].sort((a,b)=>b.min-a.min)[0].reason}</b> (${[...l.downtime].sort((a,b)=>b.min-a.min)[0].min} min).`},
+    {k:'Performance',val:pct(m.performance),tgt:95,
+      why:`Made <b>${l.totalCount.toLocaleString()}</b> of <b>${m.theoMax.toLocaleString()}</b> possible units at ${l.idealCycleSec}s cycle — speed loss of <b>${(m.theoMax-l.totalCount).toLocaleString()}</b> units.`},
+    {k:'Quality',val:pct(m.quality),tgt:99,
+      why:`<b>${m.rejects}</b> rejects of <b>${l.totalCount.toLocaleString()}</b>. Top defect: <b>${[...l.defects].sort((a,b)=>b.n-a.n)[0].reason}</b> (${[...l.defects].sort((a,b)=>b.n-a.n)[0].n} units).`}
+  ].map(r=>({...r, loss:100-r.val})).sort((a,b)=>b.loss-a.loss);
+
+  document.getElementById('drilldown').innerHTML=rows.map((r,i)=>{
+    const ok=r.val>=r.tgt, st = ok?["#e4f5ec","var(--good)","On target"] : r.val>=r.tgt-12?["#fbf1e0","var(--warn)","Below target"]:["#fde9e6","var(--crit)","Critical"];
+    return `<div class="dd-row" style="${i===0?'border-color:#f4c3bb;background:#fffafa':''}">
+      <div class="h">
+        <span class="n">${r.k}</span>
+        <span class="v" style="color:${st[1]}">${r.val.toFixed(1)}%</span>
+        <span class="s" style="background:${st[0]};color:${st[1]}">${i===0?'TOP LOSS · ':''}${st[2]}</span>
+      </div>
+      <div class="why">${r.why}<br><span class="pts">−${r.loss.toFixed(1)} OEE pts</span> · target ${r.tgt}%</div>
+    </div>`;
+  }).join('');
+  document.getElementById('ddSub').textContent=`ranked by OEE points lost`;
+}
+
+/* ---------- OEE Improvement Simulator ---------- */
+let SIM={recover:{}, speed:0, quality:0};
+function resetSim(){ SIM={recover:{}, speed:0, quality:0}; }
+
+function simCompute(){
+  const l=LINES[CURRENT], base=compute(l);
+  let recovered=0;
+  l.downtime.forEach((d,i)=>{ recovered += d.min*(SIM.recover[i]||0); });
+  const newRun=Math.min(l.plannedMin, base.runMin+recovered);
+  const newA=newRun/l.plannedMin;
+  const idealRate=60/l.idealCycleSec;                 // units/min
+  const newPerf=Math.min(1, base.performance + SIM.speed*(1-base.performance));
+  const newTheo=newRun*idealRate;
+  const newUnits=newTheo*newPerf;
+  const baseRej=base.rejects/l.totalCount;
+  const newRej=baseRej*(1-SIM.quality);
+  const newQ=1-newRej;
+  const newGood=newUnits*newQ;
+  const newOEE=newA*newPerf*newQ;
+  return {base,newA,newPerf,newQ,newOEE,newUnits,newGood,recovered,newRun};
+}
+
+function buildSimControls(){
+  const l=LINES[CURRENT];
+  let html=`<div class="sim-sub">Recover downtime (min back to run time)</div>`;
+  l.downtime.forEach((d,i)=>{
+    const frac=SIM.recover[i]||0;
+    html+=`<div class="ctl">
+      <div class="cl"><span class="name">${d.reason} <span style="color:var(--mute)">· ${d.min} min</span></span>
+      <span class="rd" id="rd-${i}">+${Math.round(d.min*frac)} min</span></div>
+      <input type="range" min="0" max="100" value="${Math.round(frac*100)}" oninput="onRecover(${i},this.value)">
+    </div>`;
+  });
+  html+=`<div class="sim-sub" style="margin-top:6px">Close the speed gap (performance)</div>
+    <div class="ctl"><div class="cl"><span class="name">Reduce minor stops &amp; hold ideal rate</span>
+    <span class="rd" id="rd-speed">${Math.round(SIM.speed*100)}% closed</span></div>
+    <input type="range" min="0" max="100" value="${Math.round(SIM.speed*100)}" oninput="onSpeed(this.value)"></div>
+    <div class="sim-sub" style="margin-top:6px">Reduce rejects (quality)</div>
+    <div class="ctl"><div class="cl"><span class="name">Cut top defects</span>
+    <span class="rd" id="rd-quality">${Math.round(SIM.quality*100)}% fewer</span></div>
+    <input type="range" min="0" max="100" value="${Math.round(SIM.quality*100)}" oninput="onQuality(this.value)"></div>`;
+  document.getElementById('simControls').innerHTML=html;
+}
+function onRecover(i,v){ SIM.recover[i]=v/100; const l=LINES[CURRENT];
+  document.getElementById('rd-'+i).textContent='+'+Math.round(l.downtime[i].min*(v/100))+' min'; renderSimOut(); }
+function onSpeed(v){ SIM.speed=v/100; document.getElementById('rd-speed').textContent=Math.round(v)+'% closed'; renderSimOut(); }
+function onQuality(v){ SIM.quality=v/100; document.getElementById('rd-quality').textContent=Math.round(v)+'% fewer'; renderSimOut(); }
+
+function cmpRow(name, baseV, projV){
+  const bw=Math.min(100,baseV), pw=Math.min(100,projV);
+  const up=projV>=baseV, col=up?'#4ec98a':'#e88b7a';
+  const d=(projV-baseV);
+  return `<div class="cr">
+    <div class="cl"><span>${name}</span><span class="d" style="color:${col}">${baseV.toFixed(1)}% → ${projV.toFixed(1)}% (${d>=0?'+':''}${d.toFixed(1)})</span></div>
+    <div class="track"><div class="base" style="width:${bw}%"></div><div class="proj2" style="width:${pw}%;background:${col};opacity:.9"></div></div>
+  </div>`;
+}
+function renderSimOut(){
+  const r=simCompute(), b=r.base;
+  const O0=pct(b.oee), O1=pct(r.newOEE), delta=O1-O0;
+  const dcol = delta>0.05?'#7fe3b0': delta<-0.05?'#f0a99b':'#b9cfe6';
+  const dbg  = delta>0.05?'rgba(46,201,138,.18)': delta<-0.05?'rgba(224,48,30,.20)':'rgba(255,255,255,.12)';
+  const gapTxt = O1>=85 ? `At or above the 85% world-class mark.` : `${(85-O1).toFixed(1)} pts to the 85% world-class mark.`;
+  const extraGood=Math.round(r.newGood-b.goodCount);
+  document.getElementById('simOut').innerHTML=`
+    <div class="cap">Projected OEE</div>
+    <div class="proj"><span class="big">${O1.toFixed(1)}%</span>
+      <span class="dl" style="color:${dcol};background:${dbg}">${delta>=0?'+':''}${delta.toFixed(1)} pts</span></div>
+    <div class="gap">${gapTxt}</div>
+    <div class="cmp">
+      ${cmpRow('Availability',pct(b.availability),pct(r.newA))}
+      ${cmpRow('Performance',pct(b.performance),pct(r.newPerf))}
+      ${cmpRow('Quality',pct(b.quality),pct(r.newQ))}
+      ${cmpRow('OEE',O0,O1)}
+    </div>
+    <div class="sim-gain">${extraGood>0
+      ? `≈ <b>+${extraGood.toLocaleString()} good units</b> this shift (${Math.round(r.recovered)} min recovered).`
+      : `Adjust the sliders or pick a scenario to project gains.`}</div>`;
+}
+
+const PRESETS=[
+  {label:'Reset', key:false, fn:()=>{ resetSim(); }},
+  {label:'Eliminate top stop', key:false, fn:()=>{ const l=LINES[CURRENT];
+    resetSim(); let mi=0; l.downtime.forEach((d,i)=>{ if(d.min>l.downtime[mi].min) mi=i; }); SIM.recover[mi]=1; }},
+  {label:'Quick wins', key:false, fn:()=>{ const l=LINES[CURRENT]; resetSim();
+    const order=l.downtime.map((d,i)=>[i,d.min]).sort((a,b)=>b[1]-a[1]);
+    if(order[0])SIM.recover[order[0][0]]=0.5; if(order[1])SIM.recover[order[1][0]]=0.5;
+    SIM.speed=0.25; SIM.quality=0.25; }},
+  {label:'Reach 85%', key:true, fn:()=>{ const l=LINES[CURRENT], b=compute(l); resetSim();
+    l.downtime.forEach((d,i)=>{ SIM.recover[i]=0.9; });
+    SIM.speed=Math.max(0,Math.min(1,(0.95-b.performance)/(1-b.performance)));
+    const baseRej=b.rejects/l.totalCount; SIM.quality=Math.max(0,Math.min(1, baseRej>0?1-0.01/baseRej:0)); }}
+];
+function buildPresets(){
+  document.getElementById('simPresets').innerHTML=PRESETS.map((p,i)=>
+    `<button class="preset ${p.key?'key':''}" onclick="applyPreset(${i})">${p.label}</button>`).join('');
+}
+function applyPreset(i){ PRESETS[i].fn(); buildSimControls(); renderSimOut(); }
+
+function renderAll(){
+  const l=LINES[CURRENT], m=compute(l);
+  renderGauge(m); renderHero(l,m); renderAPQ(l,m);
+  renderDrilldown(l,m);
+  renderWaterfall(l,m); renderPareto(l,m); renderQuality(l,m); renderLog(l,m);
+  document.getElementById('simSub').textContent=`baseline ${f1(m.oee)}%`;
+  buildSimControls(); buildPresets(); renderSimOut();
+}
+
+/* line selector */
+function buildSelect(){
+  const s=document.getElementById('line');
+  s.innerHTML=Object.entries(LINES).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join('');
+  s.value=CURRENT;
+}
+function selectLine(k){
+  CURRENT=k; resetSim(); renderAll();
+  resetCopilot();
+}
+
+/* ============================================================
+   SHOPFLOOR COPILOT (Anthropic API)
+   ============================================================ */
+let history=[]; // {role, content}
+const SUGGESTED=[
+  "Why is OEE low on this line?",
+  "What's my single biggest loss?",
+  "How do I improve OEE?",
+  "Break down availability",
+  "Explain the OEE math"
+];
+
+/* ---------- On-device reasoning engine (no network needed) ----------
+   Intent-matches the operator's question and answers from the computed
+   metrics of the currently selected line. Always grounded in real numbers. */
+function ctxData(){
+  const l=LINES[CURRENT], m=compute(l);
+  const A=pct(m.availability),P=pct(m.performance),Q=pct(m.quality),O=pct(m.oee);
+  const losses=[
+    {k:'Availability',val:A,tgt:90,loss:100-A},
+    {k:'Performance',val:P,tgt:95,loss:100-P},
+    {k:'Quality',val:Q,tgt:99,loss:100-Q}
+  ];
+  const ranked=[...losses].sort((a,b)=>b.loss-a.loss);
+  const stops=[...l.downtime].sort((a,b)=>b.min-a.min);
+  const defects=[...l.defects].sort((a,b)=>b.n-a.n);
+  return {l,m,A,P,Q,O,losses,ranked,worst:ranked[0],stops,topStop:stops[0],defects,topDefect:defects[0]};
+}
+// projected OEE if we fully recover a given number of downtime minutes
+function oeeIfRecover(min){
+  const {l,m}=ctxData();
+  const newRun=Math.min(l.plannedMin, m.runMin+min);
+  return pct((newRun/l.plannedMin)*m.performance*m.quality);
+}
+function detailFor(k){
+  const c=ctxData();
+  if(k==='Availability') return `The line lost **${c.m.downtime} min** of ${c.l.plannedMin} planned. Biggest stop: **${c.topStop.reason}** (${c.topStop.min} min).`;
+  if(k==='Performance')  return `It ran at **${c.P.toFixed(1)}% of ideal speed** — made ${c.l.totalCount.toLocaleString()} of a possible ${c.m.theoMax.toLocaleString()} units. Minor stops and slow cycles are the cause.`;
+  return `**${c.m.rejects} units** were rejected out of ${c.l.totalCount.toLocaleString()}. Top defect: **${c.topDefect.reason}** (${c.topDefect.n} units).`;
+}
+function actionFor(k){
+  const c=ctxData();
+  if(k==='Availability') return `Cut the top stops — start with **${c.topStop.reason}** (${c.topStop.min} min). Recovering it lifts OEE ~${(oeeIfRecover(c.topStop.min)-c.O).toFixed(1)} pts.`;
+  if(k==='Performance')  return `Hold ideal cycle (**${c.l.idealCycleSec}s/unit**) and clear minor stops/jams to close the ${(c.m.theoMax-c.l.totalCount).toLocaleString()}-unit speed gap.`;
+  return `Attack **${c.topDefect.reason}** (${c.topDefect.n} units) — the largest reject source.`;
+}
+
+function copilotAnswer(qRaw){
+  const q=(qRaw||'').toLowerCase();
+  const c=ctxData();
+  const has=(...w)=>w.some(x=>q.includes(x));
+
+  // e-ANDON / maintenance
+  if(has('andon','ticket','maintenance','work order','repair','breakdown fault')){
+    return andonSummaryText();
+  }
+
+  // 0) specific downtime reason mentioned by name
+  const reasonHit=c.l.downtime.find(d=>{
+    const key=d.reason.toLowerCase().replace(/[^a-z ]/g,'').split(/\s+/).filter(w=>w.length>3);
+    return key.some(w=>q.includes(w));
+  });
+  if(reasonHit && has('why','cost','minutes','min','impact','recover','stop','downtime','fix','how','about','tell','explain','what','much','long','this')){
+    const share=(reasonHit.min/c.m.downtime*100).toFixed(0);
+    const gain=(oeeIfRecover(reasonHit.min)-c.O).toFixed(1);
+    return `**${reasonHit.reason}** cost **${reasonHit.min} min** — ${share}% of this shift's downtime (${CATNAME[reasonHit.cat]} loss).\n\nEliminating it adds ${reasonHit.min} min of run time and lifts OEE ~**${gain} pts** to ${(c.O+ +gain).toFixed(1)}%. Model it in the simulator below.`;
+  }
+
+  // 1) explain the math
+  if(has('math','formula','calculat','how is it','how do you get','how oee','break it down','equation')){
+    return `**OEE math — ${c.l.name}, Shift ${c.l.shift}**\n\n• Availability = Run ÷ Planned = ${c.m.runMin} ÷ ${c.l.plannedMin} = **${c.A.toFixed(1)}%**\n• Performance = Made ÷ Ideal-max = ${c.l.totalCount.toLocaleString()} ÷ ${c.m.theoMax.toLocaleString()} = **${c.P.toFixed(1)}%**\n• Quality = Good ÷ Total = ${c.l.goodCount.toLocaleString()} ÷ ${c.l.totalCount.toLocaleString()} = **${c.Q.toFixed(1)}%**\n\n**OEE = ${c.A.toFixed(1)}% × ${c.P.toFixed(1)}% × ${c.Q.toFixed(1)}% = ${c.O.toFixed(1)}%**`;
+  }
+
+  // 2) simulate / what-if
+  if(has('simulat','what if','what-if','scenario','model','project','target','reach')){
+    return `Use the **OEE Improvement Simulator** below. Recover downtime minutes, close the speed gap, and cut rejects to watch projected OEE update live.\n\nBest starting moves for this line: eliminate **${c.topStop.reason}** (${c.topStop.min} min) and reduce **${c.topDefect.reason}** rejects. Or hit **Reach 85%** to see the full target scenario.`;
+  }
+
+  // 3) component drill-downs (check before generic "improve")
+  if(has('availab','uptime','downtime','breakdown','changeover','run time','stoppage')){
+    return `**Availability ${c.A.toFixed(1)}%** (target 90%).\nPlanned ${c.l.plannedMin} min − ${c.m.downtime} min downtime = **${c.m.runMin} min running**.\n\nTop stoppages:\n${c.stops.slice(0,3).map(s=>`• ${s.reason} — ${s.min} min`).join('\n')}\n\n${actionFor('Availability')}`;
+  }
+  if(has('performance','speed','slow','rate','cycle','minor stop','throughput')){
+    const pStop=c.l.downtime.find(d=>d.cat==='P');
+    return `**Performance ${c.P.toFixed(1)}%** (target 95%).\nIdeal cycle ${c.l.idealCycleSec}s → theoretical max **${c.m.theoMax.toLocaleString()} units** in ${c.m.runMin} min. You made ${c.l.totalCount.toLocaleString()} — a speed loss of **${(c.m.theoMax-c.l.totalCount).toLocaleString()} units**.\n\nDrivers: minor stops/jams, reduced running speed, startup ramp${pStop?` (see "${pStop.reason}", ${pStop.min} min)`:''}.`;
+  }
+  if(has('quality','reject','defect','scrap','rework','good unit','fpy','first pass')){
+    return `**Quality ${c.Q.toFixed(1)}%** (target 99%).\n**${c.m.rejects} rejects** out of ${c.l.totalCount.toLocaleString()} units.\n\nDefect Pareto:\n${c.defects.slice(0,3).map(d=>`• ${d.reason} — ${d.n} units (${(d.n/c.m.rejects*100).toFixed(0)}%)`).join('\n')}\n\nFixing **${c.topDefect.reason}** removes ${(c.topDefect.n/c.m.rejects*100).toFixed(0)}% of rejects.`;
+  }
+
+  // 4) how to improve
+  if(has('improve','increase','boost','raise','better','recommend','action','fix','lift','optimis','optimiz','how do i')){
+    const gain=(oeeIfRecover(c.topStop.min)-c.O).toFixed(1);
+    return `**How to lift OEE from ${c.O.toFixed(1)}%** — biggest levers first:\n\n1. **${c.ranked[0].k}** (−${c.ranked[0].loss.toFixed(1)} pts): ${actionFor(c.ranked[0].k)}\n2. **${c.ranked[1].k}** (−${c.ranked[1].loss.toFixed(1)} pts): ${actionFor(c.ranked[1].k)}\n3. **${c.ranked[2].k}** (−${c.ranked[2].loss.toFixed(1)} pts): ${actionFor(c.ranked[2].k)}\n\nQuick win: eliminating **${c.topStop.reason}** alone lifts OEE ~${gain} pts to ${(c.O+ +gain).toFixed(1)}%. Test combinations in the simulator below.`;
+  }
+
+  // 5) biggest / worst loss
+  if(has('biggest','worst','top','most','largest','single','main','primary','root')){
+    return `Your single biggest loss is **${c.worst.k}** at ${c.worst.val.toFixed(1)}% — costing **${c.worst.loss.toFixed(1)} points**.\n\n${detailFor(c.worst.k)}\n\nNext action: ${actionFor(c.worst.k)}`;
+  }
+
+  // 6) benchmark / how good
+  if(has('world class','world-class','benchmark','good oee','compare','how good','standard')){
+    const nearest=[...c.losses].sort((a,b)=>(a.tgt-a.val)-(b.tgt-b.val))[0];
+    return `World-class OEE is **85%** (≈90% A, 95% P, 99% Q). You're at **${c.O.toFixed(1)}%** — a ${(85-c.O).toFixed(1)}-point gap.\n\n• Closest to its target: **${nearest.k}** (${nearest.val.toFixed(1)}% vs ${nearest.tgt}%)\n• Furthest / focus here: **${c.worst.k}** (${c.worst.val.toFixed(1)}%)`;
+  }
+
+  // 7) trend
+  if(has('trend','history','last week','days','declin','getting worse','over time')){
+    const t=c.l.trend, dir=t[t.length-1]<t[0]?'declining':'improving';
+    return `7-day OEE trend for ${c.l.name}: ${t.join('% → ')}%.\n\nIt is **${dir}** (${t[0]}% → ${t[t.length-1]}%). Today's ${c.O.toFixed(1)}% is driven mainly by **${c.worst.k}** losses.`;
+  }
+
+  // 8) why is it low / diagnose (broad)
+  if(has('why','low','problem','issue','bad','drag','diagnos','wrong','poor','underperform')){
+    return `**Diagnosis — ${c.l.name}**\nOEE **${c.O.toFixed(1)}%** vs 85% world-class → **${(85-c.O).toFixed(1)}-point gap**.\n\nRanked by points lost:\n• **${c.ranked[0].k} ${c.ranked[0].val.toFixed(1)}%** — −${c.ranked[0].loss.toFixed(1)} pts\n• ${c.ranked[1].k} ${c.ranked[1].val.toFixed(1)}% — −${c.ranked[1].loss.toFixed(1)} pts\n• ${c.ranked[2].k} ${c.ranked[2].val.toFixed(1)}% — −${c.ranked[2].loss.toFixed(1)} pts\n\n**${c.worst.k}** is the main problem. ${detailFor(c.worst.k)}\n\nStart with: ${actionFor(c.worst.k)}`;
+  }
+
+  // 9) greeting / help / fallback
+  return `I read this line's live shift data. I can:\n• Diagnose **why OEE is low** and rank the losses\n• Break down **Availability, Performance, Quality**\n• Explain any **downtime reason** or **defect**\n• Show the **OEE math** and suggest **improvements**\n\nTry: "why is OEE low", "biggest loss", "break down quality", or tap a chip.`;
+}
+
+function bubble(role,text,cls){
+  const s=document.getElementById('stream');
+  const d=document.createElement('div');
+  d.className='msg '+(cls||(role==='user'?'u':'a'));
+  d.innerHTML=text.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>');
+  s.appendChild(d); s.scrollTop=s.scrollHeight;
+  return d;
+}
+function showTyping(){
+  const s=document.getElementById('stream');
+  const t=document.createElement('div');t.className='typing';t.id='typing';
+  t.innerHTML='<i></i><i></i><i></i>';s.appendChild(t);s.scrollTop=s.scrollHeight;
+}
+function hideTyping(){const t=document.getElementById('typing');if(t)t.remove();}
+
+function resetCopilot(){
+  history=[];
+  const s=document.getElementById('stream');s.innerHTML='';
+  const l=LINES[CURRENT], m=compute(l), st=statusOf(m.oee);
+  const ranked=[['Availability',pct(m.availability),90],['Performance',pct(m.performance),95],['Quality',pct(m.quality),99]].sort((a,b)=>(100-a[1])-(100-b[1])).reverse();
+  const worst=ranked[ranked.length-1]; // lowest headroom? no—compute worst by loss
+  const byLoss=[['Availability',pct(m.availability)],['Performance',pct(m.performance)],['Quality',pct(m.quality)]].sort((a,b)=>a[1]-b[1]);
+  bubble('assistant',
+    `I'm watching **${l.name}**. OEE this shift is **${f1(m.oee)}%** (${st.k}) — A ${f1(m.availability)}% × P ${f1(m.performance)}% × Q ${f1(m.quality)}%.\n\nBiggest drag right now: **${byLoss[0][0]}** (${byLoss[0][1].toFixed(1)}%). Ask me why it's low, drill into any parameter, or tap a chip. Then model fixes in the simulator below.`);
+  renderChips();
+}
+function renderChips(){
+  document.getElementById('chips').innerHTML=SUGGESTED.map(q=>
+    `<button class="chip-btn" onclick="ask(this.textContent)">${q}</button>`).join('');
+}
+function ask(text){document.getElementById('q').value=text;send();}
+
+async function send(){
+  const input=document.getElementById('q');
+  const text=input.value.trim();
+  if(!text) return;
+  input.value='';
+  document.getElementById('sendBtn').disabled=true;
+  bubble('user',text);
+  history.push({role:'user',content:text});
+  showTyping();
+
+  const reply=copilotAnswer(text);
+  await new Promise(r=>setTimeout(r,360+Math.random()*280)); // brief think
+  hideTyping();
+  history.push({role:'assistant',content:reply});
+  bubble('assistant',reply);
+  document.getElementById('sendBtn').disabled=false;
+  input.focus();
+}
+
+/* ============================================================
+   e-ANDON · auto fault ticketing + maintenance orders
+   ============================================================ */
+let ANDON=[]; let andonSeq=0, moSeq=0; let ANDON_FILTER='open';
+const TECHS=['— unassigned —','A. Verma · Mechanical','K. Rao · Electrical','J. Fernandes · Controls','P. Singh · Mechanical'];
+const SEV={Critical:{c:'var(--crit)',bg:'#fde9e6',sla:15},High:{c:'var(--warn)',bg:'#fbf1e0',sla:30},Medium:{c:'var(--y-blue)',bg:'#e7f0fb',sla:60}};
+const SFLOW={
+  'Raised':      {c:'var(--crit)', bg:'#fde9e6', next:[['ack','Acknowledge','primary']]},
+  'Acknowledged':{c:'var(--warn)', bg:'#fbf1e0', next:[['start','Start work','primary']]},
+  'In Progress': {c:'var(--y-blue)',bg:'#e7f0fb', next:[['hold','Put on hold',''],['resolve','Mark resolved','good']]},
+  'On Hold':     {c:'var(--mute)',  bg:'#eef1f5', next:[['resume','Resume work','primary']]},
+  'Resolved':    {c:'var(--good)',  bg:'#e4f5ec', next:[['close','Close ticket','']]},
+  'Closed':      {c:'var(--slate)', bg:'#eef1f5', next:[['reopen','Reopen','']]}
+};
+const STEPS=['Raised','Acknowledged','In Progress','Resolved','Closed'];
+const stepIdx=s=>({'Raised':0,'Acknowledged':1,'In Progress':2,'On Hold':2,'Resolved':3,'Closed':4}[s]);
+const ACT2ST={ack:'Acknowledged',start:'In Progress',hold:'On Hold',resume:'In Progress',resolve:'Resolved',close:'Closed',reopen:'Raised'};
+const nowMinus=m=>new Date(Date.now()-m*60000);
+const hhmm=d=>d.toLocaleTimeString('en-GB',{hour12:false}).slice(0,5);
+function newId(){andonSeq++;return 'AND-2026-'+String(andonSeq).padStart(4,'0');}
+function newMO(){moSeq++;return 'MO-2026-'+String(1000+moSeq);}
+function logEntry(t,text,when){t.log.push({t:when||new Date(),text});}
+function fmtDur(ms){const s=Math.max(0,Math.floor(ms/1000));return s<3600?`${Math.floor(s/60)}m ${String(s%60).padStart(2,'0')}s`:`${Math.floor(s/3600)}h ${Math.floor(s%3600/60)}m`;}
+
+function makeTicket(o){
+  const t={id:newId(),line:o.line,lineName:o.lineName,asset:o.asset,type:o.type,sev:o.sev,fault:o.fault,
+    status:o.status||'Raised',assignee:o.assignee||null,mo:o.mo||null,
+    raisedAt:o.raisedAt||new Date(),resolvedAt:null,log:[],_open:false,_new:o._new||false};
+  logEntry(t,'Auto-created by e-ANDON on machine fault signal (PLC → MES)',t.raisedAt);
+  return t;
+}
+function seedAndon(){
+  ANDON=[]; andonSeq=0; moSeq=0;
+  // Critical equipment fault, already in progress
+  let t=makeTicket({line:'L3',lineName:LINES.L3.name,asset:'CNV-07 Conveyor',type:'Equipment',sev:'Critical',
+    fault:'Conveyor drive overload trip — belt stalled, line stopped',raisedAt:nowMinus(23)});
+  t.mo=newMO(); t.assignee='A. Verma · Mechanical'; t.status='In Progress';
+  logEntry(t,'Acknowledged by operator — Maintenance Order '+t.mo+' created',nowMinus(20));
+  logEntry(t,'Assigned to A. Verma · Mechanical',nowMinus(19));
+  logEntry(t,'Work started — inspecting drive & overload relay',nowMinus(17));
+  ANDON.push(t);
+  // Material ANDON, acknowledged
+  t=makeTicket({line:'L3',lineName:LINES.L3.name,asset:'FEED-01 Infeed',type:'Material',sev:'Medium',
+    fault:'Blister film starved — upstream material shortage',raisedAt:nowMinus(12)});
+  t.mo=newMO(); t.status='Acknowledged';
+  logEntry(t,'Acknowledged — '+t.mo+' created, material handler notified',nowMinus(9));
+  ANDON.push(t);
+  // Fresh equipment faults, awaiting action
+  ANDON.push(makeTicket({line:'L1',lineName:LINES.L1.name,asset:'IMM-540 Molder',type:'Equipment',sev:'High',
+    fault:'Barrel zone-2 heater over-temperature alarm',raisedAt:nowMinus(6)}));
+  ANDON.push(makeTicket({line:'L5',lineName:LINES.L5.name,asset:'ROB-02 Robot Cell',type:'Equipment',sev:'High',
+    fault:'Servo axis-3 following error — cell E-stopped',raisedAt:nowMinus(3)}));
+  // Resolved example
+  t=makeTicket({line:'L5',lineName:LINES.L5.name,asset:'ASM-118 Station 4',type:'Equipment',sev:'Medium',
+    fault:'Pick actuator air pressure low',raisedAt:nowMinus(70)});
+  t.mo=newMO(); t.assignee='P. Singh · Mechanical'; t.status='Resolved'; t.resolvedAt=nowMinus(41);
+  logEntry(t,'Acknowledged — '+t.mo+' created',nowMinus(66));
+  logEntry(t,'Assigned to P. Singh · Mechanical',nowMinus(64));
+  logEntry(t,'Work started',nowMinus(60));
+  logEntry(t,'Regulator replaced, pressure restored — resolved',nowMinus(41));
+  ANDON.push(t);
+}
+
+function renderAndon(){
+  const open=ANDON.filter(t=>t.status!=='Closed');
+  const crit=open.filter(t=>t.sev==='Critical').length;
+  document.getElementById('andonSub').textContent=`${open.length} open · ${crit} critical`;
+  document.getElementById('andonFilter').innerHTML=
+    [['open','Open'],['all','All']].map(([f,lb])=>`<button class="${ANDON_FILTER===f?'on':''}" onclick="setAndonFilter('${f}')">${lb} (${f==='open'?open.length:ANDON.length})</button>`).join('');
+  let list=ANDON.slice();
+  if(ANDON_FILTER==='open') list=list.filter(t=>t.status!=='Closed');
+  const sr={Critical:0,High:1,Medium:2};
+  list.sort((a,b)=>{const ca=a.status==='Closed'?1:0,cb=b.status==='Closed'?1:0;if(ca!==cb)return ca-cb;
+    if(sr[a.sev]!==sr[b.sev])return sr[a.sev]-sr[b.sev];return a.raisedAt-b.raisedAt;});
+  const el=document.getElementById('andonList');
+  el.innerHTML=list.length?list.map(ticketHTML).join(''):
+    `<div style="text-align:center;color:var(--mute);padding:26px;font:500 13px Inter">No ANDON tickets — all equipment running.</div>`;
+  updateAndonTimers();
+}
+function ticketHTML(t){
+  const sev=SEV[t.sev], sf=SFLOW[t.status], si=stepIdx(t.status);
+  const steps=STEPS.map((s,i)=>{const cls=i<si?'done':i===si?'cur':'';
+    return `<div class="step ${cls}"><span class="dot">${i<si?'✓':i+1}</span><span class="lb">${s}</span>${i<STEPS.length-1?'<span class="bar"></span>':''}</div>`;}).join('');
+  const acts=(sf.next||[]).map(a=>`<button class="at-btn ${a[2]}" data-act="${a[0]}" data-id="${t.id}">${a[1]}</button>`).join('');
+  const techOpts=TECHS.map(x=>`<option ${((t.assignee||'— unassigned —')===x)?'selected':''}>${x}</option>`).join('');
+  const logHTML=t.log.map(e=>`<div class="le"><span class="t">${hhmm(e.t)}</span><span>${e.text}</span></div>`).join('');
+  const onHold=t.status==='On Hold'?` <span style="color:var(--mute)">(on hold)</span>`:'';
+  return `<div class="andon-ticket ${t.status==='Closed'?'closed':''} ${t._new?'new':''}" style="border-left-color:${sev.c}">
+    <div class="at-top">
+      <span class="sev-chip" style="background:${sev.bg};color:${sev.c}">${t.sev.toUpperCase()}</span>
+      <span class="at-id">${t.id}</span>
+      <span class="at-type">${t.type}</span>
+      <span class="status-badge" style="background:${sf.bg};color:${sf.c}">${t.status}</span>
+      <span class="at-timer" id="tm-${t.id}"></span>
+    </div>
+    <div class="at-asset">🔧 ${t.asset} <span style="color:var(--mute);font-weight:500">· ${t.lineName}</span></div>
+    <div class="at-fault">${t.fault}</div>
+    <div class="stepper">${steps}</div>
+    <div class="at-mo">Maintenance Order <b>${t.mo||'— pending —'}</b>${onHold}
+      <span style="margin-left:auto">Technician</span>
+      <select data-act="assign" data-id="${t.id}">${techOpts}</select></div>
+    <div class="at-actions">
+      ${acts}
+      <input class="at-note" data-note="${t.id}" placeholder="Add note / observation…">
+      <button class="at-btn" data-act="note" data-id="${t.id}">Add note</button>
+      <button class="at-logtoggle" data-act="togglelog" data-id="${t.id}">Activity ${t._open?'▲':'▼'} (${t.log.length})</button>
+    </div>
+    ${t._open?`<div class="at-log">${logHTML}</div>`:''}
+  </div>`;
+}
+function updateAndonTimers(){
+  ANDON.forEach(t=>{const el=document.getElementById('tm-'+t.id); if(!el)return;
+    const done=(t.status==='Resolved'||t.status==='Closed')&&t.resolvedAt;
+    const end=done?t.resolvedAt:new Date(); const ms=end-t.raisedAt;
+    const over=!done && ms>SEV[t.sev].sla*60000;
+    el.innerHTML=`${done?'⏱ ':''}${fmtDur(ms)} <small>/ SLA ${SEV[t.sev].sla}m</small>`;
+    el.style.color=over?'var(--crit)':'var(--ink-2)';
+  });
+}
+function doAct(id,act){
+  const t=ANDON.find(x=>x.id===id); if(!t||!ACT2ST[act])return;
+  const now=new Date();
+  if(act==='ack'&&!t.mo)t.mo=newMO();
+  t.status=ACT2ST[act];
+  if(act==='resolve')t.resolvedAt=now;
+  if(act==='resume'||act==='start'||act==='reopen')t.resolvedAt=null;
+  const msg={ack:'Acknowledged by operator — Maintenance Order '+t.mo+' created',
+    start:'Work started'+(t.assignee?' by '+t.assignee:''),
+    hold:'Put on hold',resume:'Work resumed',
+    resolve:'Repair completed — marked resolved',close:'Ticket closed',reopen:'Ticket reopened'}[act];
+  logEntry(t,msg,now); renderAndon();
+}
+function bindAndon(){
+  const list=document.getElementById('andonList');
+  list.addEventListener('click',e=>{
+    const b=e.target.closest('[data-act]'); if(!b)return;
+    const act=b.dataset.act,id=b.dataset.id;
+    if(act==='togglelog'){const t=ANDON.find(x=>x.id===id);t._open=!t._open;renderAndon();return;}
+    if(act==='note'){const inp=list.querySelector(`input[data-note="${id}"]`);const v=inp&&inp.value.trim();
+      if(v){const t=ANDON.find(x=>x.id===id);logEntry(t,'Note: '+v,new Date());t._open=true;renderAndon();}return;}
+    if(act==='assign')return;
+    doAct(id,act);
+  });
+  list.addEventListener('change',e=>{
+    const s=e.target.closest('select[data-act="assign"]'); if(!s)return;
+    const t=ANDON.find(x=>x.id===s.dataset.id); t.assignee=s.value.startsWith('—')?null:s.value;
+    logEntry(t,t.assignee?('Assigned to '+t.assignee):'Unassigned',new Date()); renderAndon();
+  });
+}
+const FAULT_POOL=[
+  {asset:'CNV-07 Conveyor',type:'Equipment',sev:'Critical',fault:'Conveyor drive overload trip — belt stalled'},
+  {asset:'SEL-02 Sealer',type:'Equipment',sev:'High',fault:'Seal head over-temperature fault'},
+  {asset:'ROB-02 Robot Cell',type:'Equipment',sev:'High',fault:'Servo axis following error — E-stop'},
+  {asset:'FIL-03 Filler',type:'Equipment',sev:'Medium',fault:'Fill nozzle pressure-low sensor alarm'},
+  {asset:'IMM-540 Molder',type:'Equipment',sev:'High',fault:'Hydraulic pump pressure fault'},
+  {asset:'VIS-01 Inspection',type:'Quality',sev:'Medium',fault:'Vision reject rate above threshold'}
+];
+function simulateFault(){
+  const l=LINES[CURRENT], f=FAULT_POOL[Math.floor(Math.random()*FAULT_POOL.length)];
+  const t=makeTicket({line:CURRENT,lineName:l.name,asset:f.asset,type:f.type,sev:f.sev,fault:f.fault,raisedAt:new Date(),_new:true});
+  ANDON.unshift(t); ANDON_FILTER='open'; renderAndon();
+  toast(`e-ANDON auto-raised · ${t.sev} · ${f.asset}`);
+  setTimeout(()=>{t._new=false;},1800);
+}
+function setAndonFilter(f){ANDON_FILTER=f;renderAndon();}
+function toast(msg){const el=document.getElementById('toast');el.innerHTML=`<span class="ic">⚠</span>${msg}`;
+  el.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>el.classList.remove('show'),3400);}
+function andonSummaryText(){
+  const open=ANDON.filter(t=>t.status!=='Closed');
+  if(!open.length)return `**No open e-ANDON tickets.** All equipment is running — nothing in the maintenance queue.`;
+  const crit=open.filter(t=>t.sev==='Critical').length;
+  const rows=open.slice(0,5).map(t=>`• ${t.sev} — **${t.asset}** (${t.status})${t.mo?` · ${t.mo}`:''}`).join('\n');
+  return `**${open.length} open e-ANDON ticket${open.length>1?'s':''}${crit?`, ${crit} critical`:''}:**\n${rows}\n\nEach machine fault auto-raises a ticket and a linked maintenance order — acknowledge, assign a technician, and update status in the e-ANDON panel.`;
+}
+
+/* clock */
+function tick(){
+  const d=new Date();
+  document.getElementById('clock').textContent=
+    d.toLocaleTimeString('en-GB',{hour12:false});
+  if(typeof updateAndonTimers==='function') updateAndonTimers();
+}
+setInterval(tick,1000);tick();
+
+/* boot */
+buildSelect();
+resetSim();
+renderAll();
+resetCopilot();
+seedAndon();
+bindAndon();
+renderAndon();
+</script>
